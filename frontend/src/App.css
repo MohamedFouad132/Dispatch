@@ -1,4 +1,4 @@
-
+/* ── Base Variables ─────────────────────────────────────────── */
 :root {
   --bg:        #0a0e14;
   --panel:     #0f1520;
@@ -87,4 +87,99 @@ html, body, #root {
 @keyframes threat-pulse {
   0%, 100% { box-shadow: 0 0 0 0 #dc262640; }
   50%       { box-shadow: 0 0 0 4px #dc262620; }
+}
+
+/* ── Three-Panel Layout ─────────────────────────────────────── */
+.layout {
+  display: grid;
+  grid-template-columns: 260px 1fr 280px;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ── Panel Header ───────────────────────────────────────────── */
+.ph {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.ph-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-mid);
+  flex: 1;
+}
+.ph-badge {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-dim);
+  background: var(--border);
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
+/* ── Left Panel ─────────────────────────────────────────────── */
+.left-panel {
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Map Area ───────────────────────────────────────────────── */
+.map-area {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #080c12;
+}
+
+#map {
+  flex: 1;
+  min-height: 0;
+}
+
+.map-foot {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 4px 12px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.mf-stat {
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+}
+.mf-stat span {
+  color: var(--text-mid);
+  margin-left: 4px;
+}
+
+/* ── Right Panel ────────────────────────────────────────────── */
+.right-panel {
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Placeholder ────────────────────────────────────────────── */
+.panel-placeholder {
+  padding: 24px 14px;
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
 }
