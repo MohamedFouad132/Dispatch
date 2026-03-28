@@ -86,8 +86,21 @@ function App() {
   const mapRef            = useRef(null);
   const vehicleMarkersRef = useRef([]);
  
-  const [threat, setThreat] = useState({ level: 'low', label: 'THREAT: ASSESSING…' });
-  const [clock,  setClock]  = useState('--:--:-- ET');
+  const [threat,      setThreat]      = useState({ level: 'low', label: 'THREAT: ASSESSING…' });
+  const [clock,       setClock]       = useState('--:--:-- ET');
+  const [agentStatus, setAgentStatus] = useState({
+    social: { status: 'idle', msg: 'Standby', count: '—' },
+    image:  { status: 'idle', msg: 'Standby', count: '—' },
+    call:   { status: 'idle', msg: 'Standby', count: '—' },
+    route:  { status: 'idle', msg: 'Standby', count: '—' },
+  });
+ 
+  const setAgent = (agent, status, msg, count = null) => {
+    setAgentStatus(prev => ({
+      ...prev,
+      [agent]: { status, msg, count: count !== null ? count : prev[agent].count },
+    }));
+  };
  
   // Live clock
   useEffect(() => {
@@ -125,7 +138,6 @@ function App() {
     mapRef.current = map;
  
     loadSimulationData().then(() => {
-      // Vehicle markers
       VEHICLES.forEach(veh => {
         const col  = getVehicleColor(veh.type);
         const html = `<div class="vehicle-marker" style="color:${col}">
@@ -139,7 +151,6 @@ function App() {
         vehicleMarkersRef.current.push({ marker, data: veh });
       });
  
-      // Hospital markers
       HOSPITALS.forEach(h => {
         const html = `<div class="facility-emoji-marker hospital-emoji-marker"><span>🏥</span></div>`;
         const icon = L.divIcon({ className: '', html, iconSize: [36, 36], iconAnchor: [18, 18] });
@@ -151,7 +162,6 @@ function App() {
           .addTo(map);
       });
  
-      // Shelter markers
       SHELTERS.forEach(s => {
         const pct  = s.capacity ? Math.round((s.available / s.capacity) * 100) : null;
         const html = `<div class="facility-emoji-marker shelter-emoji-marker"><span>🏠</span></div>`;
@@ -195,10 +205,28 @@ function App() {
                 <path d="M5.5 3.5V6.5M5.5 7.5V8" stroke="#8fa3b8" strokeWidth="1.2" strokeLinecap="round"/>
               </svg>
               <span className="ph-label">Agent Network</span>
-              <span className="ph-badge">0 / 4</span>
+              <span className="ph-badge">
+                {Object.values(agentStatus).filter(a => a.status === 'done').length} / 4
+              </span>
             </div>
-            <div className="panel-placeholder">
-              Agents will appear here
+ 
+            {/* Agent rows */}
+            <div className="agents-wrap">
+              {['social', 'image', 'call', 'route'].map(agent => (
+                <div className="agent-row" key={agent}>
+                  <div className={`ag-dot ${agentStatus[agent].status}`}></div>
+                  <div className="ag-info">
+                    <div className="ag-name">
+                      {agent === 'social' && 'Social Media Agent'}
+                      {agent === 'image'  && 'Satellite Image Agent'}
+                      {agent === 'call'   && '911 Call Agent'}
+                      {agent === 'route'  && 'Route Agent'}
+                    </div>
+                    <div className="ag-sub">{agentStatus[agent].msg}</div>
+                  </div>
+                  <div className="ag-count">{agentStatus[agent].count}</div>
+                </div>
+              ))}
             </div>
           </div>
  
