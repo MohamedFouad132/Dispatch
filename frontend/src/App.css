@@ -17,6 +17,7 @@
 
 html, body, #root {
   height: 100%;
+  width: 100%;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-mono);
@@ -40,43 +41,23 @@ html, body, #root {
   flex-shrink: 0;
   z-index: 100;
 }
-
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+.logo { display: flex; align-items: center; gap: 8px; }
 .logo-emoji { font-size: 20px; }
-.logo-text  {
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: #fff;
-  text-transform: uppercase;
+.logo-text {
+  font-size: 15px; font-weight: 700;
+  letter-spacing: 0.08em; color: #fff; text-transform: uppercase;
 }
-
-.topbar-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
+.topbar-right { display: flex; align-items: center; gap: 12px; }
 .clock {
-  font-size: 13px;
-  font-family: var(--font-mono);
-  color: var(--text-mid);
-  letter-spacing: 0.05em;
+  font-size: 13px; font-family: var(--font-mono);
+  color: var(--text-mid); letter-spacing: 0.05em;
 }
 
 /* ── Threat Badge ───────────────────────────────────────────── */
 .threat-badge {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  padding: 3px 10px;
-  border-radius: 3px;
-  border: 1px solid currentColor;
-  text-transform: uppercase;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
+  padding: 3px 10px; border-radius: 3px;
+  border: 1px solid currentColor; text-transform: uppercase;
 }
 .threat-badge.level-low      { color: #16a34a; background: #16a34a18; }
 .threat-badge.level-guarded  { color: #84cc16; background: #84cc1618; }
@@ -94,92 +75,113 @@ html, body, #root {
   display: grid;
   grid-template-columns: 260px 1fr 280px;
   flex: 1;
+  height: calc(100vh - 46px);
   overflow: hidden;
   min-height: 0;
 }
 
 /* ── Panel Header ───────────────────────────────────────────── */
 .ph {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  display: flex; align-items: center; gap: 6px;
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 .ph-label {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-mid);
-  flex: 1;
+  font-size: 9px; font-weight: 700; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--text-mid); flex: 1;
 }
 .ph-badge {
-  font-size: 9px;
-  font-weight: 700;
-  color: var(--text-dim);
-  background: var(--border);
-  padding: 1px 6px;
-  border-radius: 8px;
+  font-size: 9px; font-weight: 700; color: var(--text-dim);
+  background: var(--border); padding: 1px 6px; border-radius: 8px;
 }
 
 /* ── Left Panel ─────────────────────────────────────────────── */
 .left-panel {
   background: var(--panel);
   border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  display: flex; flex-direction: column; overflow: hidden;
 }
 
 /* ── Map Area ───────────────────────────────────────────────── */
 .map-area {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: #080c12;
+  position: relative; display: flex;
+  flex-direction: column; overflow: hidden;
+  background: #080c12; flex: 1; min-height: 0;
 }
-
-#map {
-  flex: 1;
-  min-height: 0;
-}
+#map { flex: 1; min-height: 0; height: 100%; }
 
 .map-foot {
-  display: flex;
-  align-items: center;
-  gap: 16px;
+  display: flex; align-items: center; gap: 16px;
   padding: 4px 12px;
   background: var(--panel);
   border-top: 1px solid var(--border);
   flex-shrink: 0;
 }
-.mf-stat {
-  font-size: 9px;
-  color: var(--text-dim);
-  letter-spacing: 0.06em;
-}
-.mf-stat span {
-  color: var(--text-mid);
-  margin-left: 4px;
-}
+.mf-stat { font-size: 9px; color: var(--text-dim); letter-spacing: 0.06em; }
+.mf-stat span { color: var(--text-mid); margin-left: 4px; }
 
 /* ── Right Panel ────────────────────────────────────────────── */
 .right-panel {
   background: var(--panel);
   border-left: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  display: flex; flex-direction: column; overflow: hidden;
 }
 
 /* ── Placeholder ────────────────────────────────────────────── */
 .panel-placeholder {
-  padding: 24px 14px;
-  text-align: center;
-  font-size: 10px;
-  color: var(--text-dim);
+  padding: 24px 14px; text-align: center;
+  font-size: 10px; color: var(--text-dim);
   font-family: var(--font-mono);
+}
+
+/* ── Vehicle Markers ────────────────────────────────────────── */
+.vehicle-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.vehicle-marker:hover { transform: scale(1.08); }
+.vehicle-emoji {
+  font-size: 20px;
+  line-height: 1.2;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+}
+.vehicle-label {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  background: #0a0e14cc;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+}
+
+/* ── Facility Markers ───────────────────────────────────────── */
+.facility-emoji-marker {
+  display: flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 50%;
+  border: 2px solid;
+  cursor: pointer; transition: transform 0.15s;
+}
+.facility-emoji-marker:hover { transform: scale(1.1); }
+.facility-emoji-marker span  { font-size: 18px; }
+.hospital-emoji-marker { background: #ef444418; border-color: #ef444460; }
+.shelter-emoji-marker  { background: #8b5cf618; border-color: #8b5cf660; }
+
+/* ── Facility Tooltip ───────────────────────────────────────── */
+.facility-tooltip {
+  background: #0f1520 !important;
+  border: 1px solid #1e2a38 !important;
+  color: #cdd6e0 !important;
+  font-family: var(--font-mono) !important;
+  font-size: 11px !important;
+  border-radius: 4px !important;
+  padding: 5px 8px !important;
+}
+.leaflet-tooltip-top.facility-tooltip::before {
+  border-top-color: #1e2a38 !important;
 }
