@@ -28,9 +28,7 @@
   flex-direction: column;
 }
 
-.app-hidden {
-  display: none !important;
-}
+.app-hidden { display: none !important; }
 
 /* ── Topbar ─────────────────────────────────────────────────────────────── */
 .topbar {
@@ -141,6 +139,40 @@
 .ag-sub  { font-family: var(--font-mono); font-size: 9px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ag-count { font-family: var(--font-mono); font-size: 10px; color: var(--text-secondary); flex-shrink: 0; }
 
+/* ── Run Button ─────────────────────────────────────────────────────────── */
+.run-wrap { padding: 12px; border-top: 1px solid var(--border); flex-shrink: 0; }
+#run-btn {
+  width: 100%;
+  padding: 11px;
+  background: transparent;
+  border: 1px solid var(--amber);
+  color: var(--amber);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+}
+#run-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--amber);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.28s ease;
+}
+#run-btn:hover::before { transform: scaleX(1); }
+#run-btn:hover { color: var(--bg-void); }
+#run-btn span { position: relative; z-index: 1; }
+#run-btn.running { border-color: var(--red); color: var(--red); animation: rpulse 0.7s ease-in-out infinite alternate; cursor: not-allowed; }
+#run-btn.running::before { display: none; }
+@keyframes rpulse { from{opacity:0.75} to{opacity:1} }
+
 /* ── Map Area ───────────────────────────────────────────────────────────── */
 .map-area {
   height: 100%;
@@ -176,7 +208,7 @@
 .mf-stat { font-family: var(--font-mono); font-size: 9px; color: #cbd5e6; }
 .mf-stat span { color: #f1f5f9; }
 
-/* ── Vehicle Markers (on map) ───────────────────────────────────────────── */
+/* ── Vehicle Markers ────────────────────────────────────────────────────── */
 .vehicle-marker {
   display: flex;
   flex-direction: column;
@@ -198,7 +230,7 @@
   letter-spacing: 0.08em;
 }
 
-/* ── Incident Markers ───────────────────────────────────────────────────── */
+/* ── Incident Markers (map pins) ────────────────────────────────────────── */
 .inc-marker-wrap { pointer-events: all; }
 .inc-pin { display: flex; flex-direction: column; align-items: center; }
 .inc-label {
@@ -237,7 +269,7 @@
 }
 @keyframes ring-out { 0%{transform:scale(0.5);opacity:0.6} 100%{transform:scale(2.6);opacity:0} }
 
-/* ── Facility emoji markers (hospitals & shelters) ───────────────────────── */
+/* ── Facility markers ───────────────────────────────────────────────────── */
 .facility-emoji-marker {
   display: flex;
   align-items: center;

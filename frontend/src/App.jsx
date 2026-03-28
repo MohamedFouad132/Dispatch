@@ -42,6 +42,11 @@ async function loadSimulationData() {
   const res  = await fetch('/simulation.json');
   const data = await res.json();
   const resources    = data.resources || {};
+  const stationNames = {
+    ambulance: ['Station 1 - Downtown', 'Station 2 - Seminole Hts', 'Station 3 - South Tampa'],
+    firetruck: ['Fire Station 1 - Downtown', 'Fire Station 2 - Seminole Heights', 'Fire Station 3 - South Tampa'],
+    police:    ['Precinct A - Kennedy', 'Precinct B - Howard Ave', 'Precinct C - North Tampa'],
+  };
   const counters = { ambulance: 0, firetruck: 0, police: 0 };
   VEHICLES = [
     ...(resources.ambulances || []),
@@ -76,6 +81,16 @@ const getVehicleColor = (type) => {
   return '#f59e0b';
 };
 
+function computeSeverity(text) {
+  const lower = text.toLowerCase();
+  if (lower.includes('trapped') || lower.includes('collapse') || lower.includes('explosion')) return 0.95;
+  if (lower.includes('fire')    || lower.includes('flood')    || lower.includes('rising'))    return 0.85;
+  if (lower.includes('injury')  || lower.includes('car')      || lower.includes('pileup'))    return 0.75;
+  if (lower.includes('medical') || lower.includes('insulin'))                                 return 0.70;
+  if (lower.includes('power')   || lower.includes('stranded'))                                return 0.65;
+  return 0.50;
+}
+
 
 function App() {
   const mapRef            = useRef(null);
@@ -83,13 +98,13 @@ function App() {
 
   const [threat,      setThreat]      = useState({ level: 'low', label: 'THREAT: ASSESSING…' });
   const [clock,       setClock]       = useState('--:--:-- ET');
+  const [running,     setRunning]     = useState(false);
   const [agentStatus, setAgentStatus] = useState({
     social: { status: 'idle', msg: 'Standby', count: '—' },
     image:  { status: 'idle', msg: 'Standby', count: '—' },
     call:   { status: 'idle', msg: 'Standby', count: '—' },
     route:  { status: 'idle', msg: 'Standby', count: '—' },
   });
-  // feedIncidents is the array powering the right panel
   const [feedIncidents, setFeedIncidents] = useState([]);
 
   const setAgent = (agent, status, msg, count = null) => {
@@ -99,7 +114,7 @@ function App() {
     }));
   };
 
-  // Live clock
+  // Live ET clock
   useEffect(() => {
     const tick = () => {
       const now = new Date();
@@ -135,7 +150,6 @@ function App() {
     mapRef.current = map;
 
     loadSimulationData().then(() => {
-      // Vehicle markers
       VEHICLES.forEach(veh => {
         const col  = getVehicleColor(veh.type);
         const html = `<div class="vehicle-marker" style="color:${col}">
@@ -148,6 +162,7 @@ function App() {
         marker.addTo(map);
         vehicleMarkersRef.current.push({ marker, data: veh });
       });
+
       HOSPITALS.forEach(h => {
         const html = `<div class="facility-emoji-marker hospital-emoji-marker"><span>🏥</span></div>`;
         const icon = L.divIcon({ className: '', html, iconSize: [36, 36], iconAnchor: [18, 18] });
@@ -158,6 +173,7 @@ function App() {
           )
           .addTo(map);
       });
+
       SHELTERS.forEach(s => {
         const pct  = s.capacity ? Math.round((s.available / s.capacity) * 100) : null;
         const html = `<div class="facility-emoji-marker shelter-emoji-marker"><span>🏠</span></div>`;
@@ -174,65 +190,11 @@ function App() {
     return () => { map.remove(); mapRef.current = null; };
   }, []);
 
-  // will be integrated later on
-  const runLocalSocialAgent = async () => {
-    setAgent('social', 'active', 'Scanning social feeds…');
-    await new Promise(r => setTimeout(r, 1200));
-
-    const incidents = SOCIAL_POSTS.map((post, i) => ({
-      id:       `social-${i}`,
-      source:   'Social Media',
-      text:     post.text,
-      lat:      post.lat,
-      lon:      post.lon,
-      severity: computeSeverity(post.text),
-      ts:       Date.now() + i * 80,
-    }));
-
-    setAgent('social', 'done', `Found ${incidents.length} posts`, incidents.length);
-    return incidents;
-  };
-
-  const runLocalSatelliteAgent = async () => {
-    setAgent('image', 'active', 'Analyzing satellite imagery…');
-    await new Promise(r => setTimeout(r, 1600));
-
-    const incidents = SATELLITE_DETECTIONS.map((det, i) => ({
-      id:       `sat-${i}`,
-      source:   'Satellite',
-      text:     det.description || det.text || 'Anomaly detected',
-      lat:      det.lat,
-      lon:      det.lon,
-      severity: det.severity ?? computeSeverity(det.description || det.text || ''),
-      ts:       Date.now() + i * 80,
-    }));
-
-    setAgent('image', 'done', `Detected ${incidents.length} anomalies`, incidents.length);
-    return incidents;
-  };
-
-  const runLocal911Agent = async () => {
-    setAgent('call', 'active', 'Processing 911 transcripts…');
-    await new Promise(r => setTimeout(r, 1000));
-
-    const incidents = CALL_TRANSCRIPTS.map((call, i) => ({
-      id:       `call-${i}`,
-      source:   '911 Call',
-      text:     call.transcript || call.text || 'Emergency reported',
-      lat:      call.lat,
-      lon:      call.lon,
-      severity: computeSeverity(call.transcript || call.text || ''),
-      ts:       Date.now() + i * 80,
-    }));
-
-    setAgent('call', 'done', `Processed ${incidents.length} calls`, incidents.length);
-    return incidents;
-  };
-
+   // Agents run strictly one after the other
   const runSimulation = async () => {
-    if (!mapRef.current) return;
+    if (running || !mapRef.current) return;
+    setRunning(true);
 
-    // Reset feed
     setFeedIncidents([]);
     setThreat({ level: 'low', label: 'THREAT: ASSESSING…' });
     setAgentStatus({
@@ -242,28 +204,54 @@ function App() {
       route:  { status: 'idle', msg: 'Standby', count: '—' },
     });
 
-    // Run 3 agents in parallel
-    const [socialInc, satInc, callInc] = await Promise.all([
-      runLocalSocialAgent(),
-      runLocalSatelliteAgent(),
-      runLocal911Agent(),
-    ]);
-
-    const allIncidents = [...socialInc, ...satInc, ...callInc]
-      .sort((a, b) => b.severity - a.severity);
-
-    // Stream incidents into the feed one by one
-    for (let i = 0; i < allIncidents.length; i++) {
+    // 1 — Social Media Agent
+    setAgent('social', 'active', 'Scanning social feeds…');
+    await new Promise(r => setTimeout(r, 1400));
+    const socialInc = SOCIAL_POSTS.map((post, i) => ({
+      id: `social-${i}`, source: 'Social Media',
+      text: post.text, lat: post.lat, lon: post.lon,
+      severity: computeSeverity(post.text),
+    }));
+    setAgent('social', 'done', `Found ${socialInc.length} posts`, socialInc.length);
+    for (let i = 0; i < socialInc.length; i++) {
       await new Promise(r => setTimeout(r, 90));
-      setFeedIncidents(prev => {
-        const next = [...prev, allIncidents[i]];
-        setThreat(calcThreat(next));
-        return next;
-      });
+      setFeedIncidents(prev => { const next = [...prev, socialInc[i]]; setThreat(calcThreat(next)); return next; });
     }
 
-    setAgent('route', 'done', 'Route planning ready');
-  };
+    // 2 — Satellite Image Agent
+    setAgent('image', 'active', 'Analyzing satellite imagery…');
+    await new Promise(r => setTimeout(r, 1800));
+    const satInc = SATELLITE_DETECTIONS.map((det, i) => ({
+      id: `sat-${i}`, source: 'Satellite',
+      text: det.description || det.text || 'Anomaly detected',
+      lat: det.lat, lon: det.lon,
+      severity: det.severity ?? computeSeverity(det.description || det.text || ''),
+    }));
+    setAgent('image', 'done', `Detected ${satInc.length} anomalies`, satInc.length);
+    for (let i = 0; i < satInc.length; i++) {
+      await new Promise(r => setTimeout(r, 90));
+      setFeedIncidents(prev => { const next = [...prev, satInc[i]]; setThreat(calcThreat(next)); return next; });
+    }
+
+  // 3 — 911 Call Agent
+  setAgent('call', 'active', 'Processing 911 transcripts…');
+  await new Promise(r => setTimeout(r, 1200));
+  const callInc = CALL_TRANSCRIPTS.map((call, i) => ({
+    id: `call-${i}`, source: '911 Call',
+    text: call.transcript || call.text || 'Emergency reported',
+    lat: call.lat, lon: call.lon,
+    severity: computeSeverity(call.transcript || call.text || ''),
+  }));
+  setAgent('call', 'done', `Processed ${callInc.length} calls`, callInc.length);
+  for (let i = 0; i < callInc.length; i++) {
+    await new Promise(r => setTimeout(r, 90));
+    setFeedIncidents(prev => { const next = [...prev, callInc[i]]; setThreat(calcThreat(next)); return next; });
+  }
+
+  // 4 — Route Agent
+  setAgent('route', 'done', 'Route planning ready');
+  setRunning(false);
+};
 
   return (
     <div className="app">
@@ -292,10 +280,11 @@ function App() {
                 <path d="M5.5 3.5V6.5M5.5 7.5V8" stroke="#8fa3b8" strokeWidth="1.2" strokeLinecap="round"/>
               </svg>
               <span className="ph-label">Agent Network</span>
-              <span className="ph-badge">0 / 4</span>
+              <span className="ph-badge">
+                {Object.values(agentStatus).filter(a => a.status === 'done').length} / 4
+              </span>
             </div>
 
-            {/* Agent rows */}
             <div className="agents-wrap">
               {['social', 'image', 'call', 'route'].map(agent => (
                 <div className="agent-row" key={agent}>
@@ -315,8 +304,13 @@ function App() {
             </div>
 
             <div className="run-wrap">
-              <button id="run-btn" onClick={runSimulation}>
-                <span>▶ Run Simulation</span>
+              <button
+                id="run-btn"
+                onClick={runSimulation}
+                className={running ? 'running' : ''}
+                disabled={running}
+              >
+                <span>{running ? '⟳ Agents Running…' : '▶ Start Agents'}</span>
               </button>
             </div>
           </div>
