@@ -3,7 +3,9 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './App.css';
 
+// --------------------------------------------------------------
 // Helper functions
+// --------------------------------------------------------------
 
 // Pad a number with leading zeros to ensure it has at least 2 digits
 const pad = (n) => String(n).padStart(2, '0');
@@ -24,13 +26,14 @@ const calcThreat = (incidents) => {
   const high = incidents.filter(x => x.severity >= 0.65 && x.severity < 0.85).length;
   const mod  = incidents.filter(x => x.severity >= 0.45 && x.severity < 0.65).length;
   const score = crit * 3 + high * 1.5 + mod * 0.5;
-  if (crit === 0 && score < 2)   return { level: 'low',      label: 'THREAT: LOW' };
-  if (crit === 0 && score < 5)   return { level: 'guarded',  label: 'THREAT: GUARDED' };
-  if (crit <= 2  && score < 12)  return { level: 'elevated', label: 'THREAT: ELEVATED' };
-  if (crit <= 4  && score < 22)  return { level: 'high',     label: 'THREAT: HIGH' };
-  return                                { level: 'critical',  label: 'THREAT: CRITICAL' };
+  if (crit === 0 && score < 2)  return { level: 'low',      label: 'THREAT: LOW' };
+  if (crit === 0 && score < 5)  return { level: 'guarded',  label: 'THREAT: GUARDED' };
+  if (crit <= 2  && score < 12) return { level: 'elevated', label: 'THREAT: ELEVATED' };
+  if (crit <= 4  && score < 22) return { level: 'high',     label: 'THREAT: HIGH' };
+  return { level: 'critical', label: 'THREAT: CRITICAL' };
 };
 
+// Data loaded from simulation.json — populated by loadSimulationData()
 let VEHICLES             = [];
 let HOSPITALS            = [];
 let SHELTERS             = [];
@@ -41,8 +44,8 @@ let CALL_TRANSCRIPTS     = [];
 async function loadSimulationData() {
   const res  = await fetch('/simulation.json');
   const data = await res.json();
-  const resources    = data.resources || {};
-  const counters     = { ambulance: 0, firetruck: 0, police: 0 };
+  const resources = data.resources || {};
+  const counters  = { ambulance: 0, firetruck: 0, police: 0 };
   VEHICLES = [
     ...(resources.ambulances || []),
     ...(resources.firetrucks || []),
@@ -51,16 +54,8 @@ async function loadSimulationData() {
     const type = v.type;
     const idx  = counters[type] ?? 0;
     counters[type] = idx + 1;
-    return {
-      id:    v.id,
-      type,
-      emoji: v.emoji,
-      lat:   v.lat,
-      lon:   v.lon,
-      label: v.id,
-    };
+    return { id: v.id, type, emoji: v.emoji, lat: v.lat, lon: v.lon, label: v.id };
   });
-
   HOSPITALS            = (data.hospitals            || []).map(h => ({ name: h.name, lat: h.lat, lon: h.lon, status: h.status }));
   SHELTERS             = (data.shelters             || []).map(s => ({ name: s.name, lat: s.lat, lon: s.lon, capacity: s.capacity, available: s.available }));
   SOCIAL_POSTS         = data.social_posts         || [];
@@ -87,9 +82,11 @@ function computeSeverity(text) {
   return 0.50;
 }
 
+// ─── Main App ─────────────────────────────────────────────────────────────────
 function App() {
   const mapRef            = useRef(null);
   const vehicleMarkersRef = useRef([]);
+  const logOutRef         = useRef(null); // ref for auto-scroll on new log entries
 
   const [threat,        setThreat]        = useState({ level: 'low', label: 'THREAT: ASSESSING…' });
   const [clock,         setClock]         = useState('--:--:-- ET');
@@ -102,6 +99,12 @@ function App() {
     route:  { status: 'idle', msg: 'Standby', count: '—' },
   });
 
+  // Deliberation log — capped at 80 entries to avoid memory bloat
+  const [logs, setLogs] = useState([
+    { time: '00:00:00', agent: 'sys', msg: 'Agents on standby.' },
+  ]);
+
+  // Updates a single agent's status, message, and optional count
   const setAgent = (agent, status, msg, count = null) => {
     setAgentStatus(prev => ({
       ...prev,
@@ -109,7 +112,25 @@ function App() {
     }));
   };
 
-  // Live clock
+  // Appends a timestamped entry to the deliberation log
+  const addLog = (agent, msg) => {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false,
+    });
+    setLogs(prev => [...prev.slice(-80), { time: formatter.format(now), agent, msg }]);
+  };
+
+  // Auto-scroll log to bottom whenever a new entry is appended
+  useEffect(() => {
+    if (logOutRef.current) {
+      logOutRef.current.scrollTop = logOutRef.current.scrollHeight;
+    }
+  }, [logs]);
+
+  // Live clock — ticks every second in Eastern Time
   useEffect(() => {
     const tick = () => {
       const now = new Date();
@@ -131,8 +152,7 @@ function App() {
 
     const map = L.map('map', { zoomControl: true }).setView([27.9506, -82.4572], 12);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors, © CartoDB',
-      maxZoom: 19,
+      attribution: '© OpenStreetMap contributors, © CartoDB', maxZoom: 19,
     }).addTo(map);
 
     map.on('mousemove', (e) => {
@@ -159,7 +179,7 @@ function App() {
         vehicleMarkersRef.current.push({ marker, data: veh });
       });
 
-      // Hospital markers
+      // Hospital markers — emoji only, info on hover
       HOSPITALS.forEach(h => {
         const html = `<div class="facility-emoji-marker hospital-emoji-marker"><span>🏥</span></div>`;
         const icon = L.divIcon({ className: '', html, iconSize: [36, 36], iconAnchor: [18, 18] });
@@ -171,7 +191,7 @@ function App() {
           .addTo(map);
       });
 
-      // Shelter markers
+      // Shelter markers — emoji only, info on hover
       SHELTERS.forEach(s => {
         const pct  = s.capacity ? Math.round((s.available / s.capacity) * 100) : null;
         const html = `<div class="facility-emoji-marker shelter-emoji-marker"><span>🏠</span></div>`;
@@ -192,7 +212,6 @@ function App() {
   const runSimulation = async () => {
     if (running || !mapRef.current) return;
     setRunning(true);
-
     setFeedIncidents([]);
     setThreat({ level: 'low', label: 'THREAT: ASSESSING…' });
     setAgentStatus({
@@ -202,52 +221,72 @@ function App() {
       route:  { status: 'idle', msg: 'Standby', count: '—' },
     });
 
-    // 1 — Social Media Agent
+    // Reset log with a fresh start entry
+    const now = new Date();
+    const formatter0 = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+    });
+    setLogs([{ time: formatter0.format(now), agent: 'sys', msg: 'Agents started.' }]);
+
+    //Social Media Agent
     setAgent('social', 'active', 'Scanning social feeds…');
+    addLog('social', 'Scanning social media for distress signals…');
     await new Promise(r => setTimeout(r, 1400));
     const socialInc = SOCIAL_POSTS.map((post, i) => ({
-      id: `social-${i}`, source: 'Social Media',
+      id: `social-${i}`, source: 'SOCIAL MEDIA',
       text: post.text, lat: post.lat, lon: post.lon,
       severity: computeSeverity(post.text),
     }));
-    setAgent('social', 'done', `Found ${socialInc.length} posts`, socialInc.length);
+    setAgent('social', 'done', 'Complete', socialInc.length);
     for (let i = 0; i < socialInc.length; i++) {
       await new Promise(r => setTimeout(r, 90));
       setFeedIncidents(prev => { const next = [...prev, socialInc[i]]; setThreat(calcThreat(next)); return next; });
     }
+    addLog('social', `✓ Complete — ${socialInc.length} incidents queued.`);
 
-    // 2 — Satellite Image Agent
-    setAgent('image', 'active', 'Analyzing satellite imagery…');
+    //Satellite Image Agent
+    setAgent('image', 'active', 'Processing satellite imagery…');
+    addLog('image', 'Analyzing satellite imagery for damage signatures…');
     await new Promise(r => setTimeout(r, 1800));
     const satInc = SATELLITE_DETECTIONS.map((det, i) => ({
-      id: `sat-${i}`, source: 'Satellite',
+      id: `sat-${i}`, source: 'SATELLITE IMAGE',
       text: det.description || det.text || 'Anomaly detected',
       lat: det.lat, lon: det.lon,
       severity: det.severity ?? computeSeverity(det.description || det.text || ''),
     }));
-    setAgent('image', 'done', `Detected ${satInc.length} anomalies`, satInc.length);
+    setAgent('image', 'done', 'Complete', satInc.length);
     for (let i = 0; i < satInc.length; i++) {
       await new Promise(r => setTimeout(r, 90));
       setFeedIncidents(prev => { const next = [...prev, satInc[i]]; setThreat(calcThreat(next)); return next; });
     }
+    addLog('image', `✓ Complete — ${satInc.length} detections confirmed.`);
 
-    // 3 — 911 Call Agent
+    //911 Call Agent
     setAgent('call', 'active', 'Processing 911 transcripts…');
+    addLog('call', 'Transcribing and triaging 911 call queue…');
     await new Promise(r => setTimeout(r, 1200));
     const callInc = CALL_TRANSCRIPTS.map((call, i) => ({
-      id: `call-${i}`, source: '911 Call',
+      id: `call-${i}`, source: '911 DISPATCH',
       text: call.transcript || call.text || 'Emergency reported',
       lat: call.lat, lon: call.lon,
       severity: computeSeverity(call.transcript || call.text || ''),
     }));
-    setAgent('call', 'done', `Processed ${callInc.length} calls`, callInc.length);
+    setAgent('call', 'done', 'Complete', callInc.length);
     for (let i = 0; i < callInc.length; i++) {
       await new Promise(r => setTimeout(r, 90));
       setFeedIncidents(prev => { const next = [...prev, callInc[i]]; setThreat(calcThreat(next)); return next; });
     }
+    addLog('call', `✓ Complete — ${callInc.length} calls processed.`);
 
-    // 4 — Route Agent (placeholder, wired in later commit)
+    // Route Agent (placeholder, wired in later commit)
+    setAgent('route', 'active', 'Calculating optimal routes…');
+    addLog('route', 'Initializing route optimization across all units…');
+    await new Promise(r => setTimeout(r, 800));
     setAgent('route', 'done', 'Route planning ready');
+    addLog('route', '✓ Complete — routes ready for dispatch.');
+    addLog('sys', 'All agents complete. Awaiting dispatch command.');
+
     setRunning(false);
   };
 
@@ -326,7 +365,7 @@ function App() {
             </div>
           </div>
 
-          {/* Right panel — Incident Feed */}
+          {/* Right panel — Incident Feed + Deliberation Log */}
           <div className="right-panel">
             <div className="ph">
               <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
@@ -335,6 +374,8 @@ function App() {
               <span className="ph-label">Incident Feed</span>
               <span className="ph-badge">{feedIncidents.length}</span>
             </div>
+
+            {/* Scrollable incident list */}
             <div className="incident-list">
               {feedIncidents.length === 0 ? (
                 <div style={{ padding: '24px 14px', textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--text-dim)' }}>
@@ -357,8 +398,31 @@ function App() {
                 })
               )}
             </div>
-          </div>
 
+            {/* Agent Deliberation Log — fixed height at bottom of right panel */}
+            <div className="log-panel">
+              <div className="log-head">
+                <div className="log-dot"></div>
+                <span className="log-lbl">Agent Log</span>
+              </div>
+              <div className="log-out" id="log-out" ref={logOutRef}>
+                {logs.map((log, i) => (
+                  <div className="ll" key={i}>
+                    <span className="ll-time">{log.time}</span>
+                    <span className={`ll-ag ${log.agent}`}>
+                      {log.agent === 'social' && '[SOCIAL]'}
+                      {log.agent === 'image'  && '[IMAGE]'}
+                      {log.agent === 'call'   && '[911]'}
+                      {log.agent === 'route'  && '[ROUTE]'}
+                      {log.agent === 'sys'    && '[SYS]'}
+                    </span>
+                    <span className="ll-msg">{log.msg}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+          </div>
         </div>
       </div>
     </div>
