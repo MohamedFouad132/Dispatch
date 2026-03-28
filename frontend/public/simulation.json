@@ -1,0 +1,56 @@
+{
+  "center": [27.9506, -82.4572],
+  "social_posts": [
+    {"text": "HELP water rising fast at Bayshore Blvd — car submerged pls rescue", "lat": 27.9351, "lon": -82.4794},
+    {"text": "Roof collapsed N Armenia Ave apartment, multiple ppl trapped inside", "lat": 27.9748, "lon": -82.4812},
+    {"text": "Gas explosion Ybor City 7th Ave — massive fire spreading fast!!!", "lat": 27.9607, "lon": -82.4368},
+    {"text": "Flooding on Gandy Blvd completely impassable, cars being swept away", "lat": 27.9042, "lon": -82.5147},
+    {"text": "Downed power lines Hyde Park Ave sparking in 3ft floodwater DANGER", "lat": 27.9428, "lon": -82.4623},
+    {"text": "Davis Islands bridge washed out, hundreds of residents stranded", "lat": 27.9262, "lon": -82.4489},
+    {"text": "Multiple injuries on Kennedy Blvd near downtown, ambulance needed", "lat": 27.9541, "lon": -82.4593},
+    {"text": "Surge flooding Channelside — 4ft water in streets, rising still", "lat": 27.9440, "lon": -82.4480},
+    {"text": "Tree fell on house on Dale Mabry — elderly resident needs help", "lat": 27.9653, "lon": -82.5039},
+    {"text": "Brandon towers down, residents can't reach 911, completely dark", "lat": 27.9383, "lon": -82.3286}
+  ],
+  "call_transcripts": [
+    {"text": "Grandmother trapped 2nd floor, water at roof level, 1450 Bayshore Blvd", "lat": 27.9340, "lon": -82.4801},
+    {"text": "Partial building collapse South Howard Ave — 6 people unaccounted for", "lat": 27.9387, "lon": -82.4768},
+    {"text": "Child swept into storm drain near Riverwalk, parents frantic on scene", "lat": 27.9476, "lon": -82.4573},
+    {"text": "Nursing home flooding Seminole Heights — 40 residents can't evacuate", "lat": 27.9842, "lon": -82.4629},
+    {"text": "Multi-car pileup I-275 southbound, debris blocking all lanes, 3 injured", "lat": 27.9690, "lon": -82.4744},
+    {"text": "Diabetic man out of insulin, stranded, flooding on all access roads", "lat": 27.9218, "lon": -82.4622},
+    {"text": "Couple on rooftop 33rd St N — water still rising, waving for help", "lat": 27.9928, "lon": -82.4712}
+  ],
+  "satellite_detections": [
+    {"type": "flood", "text": "Satellite detected flood zone - Bayshore Blvd area", "lat": 27.9351, "lon": -82.4794, "radius_km": 1.2},
+    {"type": "flood", "text": "Flooding detected in South Tampa near Gandy Blvd", "lat": 27.9042, "lon": -82.5147, "radius_km": 0.8},
+    {"type": "fire", "text": "Thermal anomaly detected - Ybor City, possible fire", "lat": 27.9607, "lon": -82.4368, "radius_km": 0.5},
+    {"type": "flood", "text": "Extensive flooding in Channelside district", "lat": 27.9440, "lon": -82.4480, "radius_km": 1.0},
+    {"type": "fire", "text": "Heat signature near Hyde Park - possible structure fire", "lat": 27.9428, "lon": -82.4623, "radius_km": 0.4}
+  ],
+  "resources": {
+    "ambulances": [
+      {"id": "AMB-1", "emoji": "🚑", "lat": 27.9506, "lon": -82.4572, "type": "ambulance"},
+      {"id": "AMB-2", "emoji": "🚑", "lat": 27.9748, "lon": -82.4629, "type": "ambulance"},
+      {"id": "AMB-3", "emoji": "🚑", "lat": 27.9262, "lon": -82.4622, "type": "ambulance"}
+    ],
+    "firetrucks": [
+      {"id": "FIRE-1", "emoji": "🚒", "lat": 27.9455, "lon": -82.4562, "type": "firetruck"},
+      {"id": "FIRE-2", "emoji": "🚒", "lat": 27.9725, "lon": -82.4640, "type": "firetruck"},
+      {"id": "FIRE-3", "emoji": "🚒", "lat": 27.9290, "lon": -82.4665, "type": "firetruck"}
+    ],
+    "police": [
+      {"id": "POL-1", "emoji": "🚓", "lat": 27.9541, "lon": -82.4593, "type": "police"},
+      {"id": "POL-2", "emoji": "🚓", "lat": 27.9387, "lon": -82.4768, "type": "police"},
+      {"id": "POL-3", "emoji": "🚓", "lat": 27.9900, "lon": -82.4712, "type": "police"}
+    ]
+  },
+  "hospitals": [
+    {"name": "Tampa General Hospital", "lat": 27.9341, "lon": -82.4521, "status": "operational"},
+    {"name": "St. Joseph's Hospital", "lat": 27.9742, "lon": -82.4844, "status": "operational"}
+  ],
+  "shelters": [
+    {"name": "Tampa Convention Center", "lat": 27.9457, "lon": -82.4567, "capacity": 500, "available": 350},
+    {"name": "Raymond James Stadium", "lat": 27.9759, "lon": -82.5033, "capacity": 2000, "available": 1200}
+  ]
+}
