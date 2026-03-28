@@ -42,11 +42,6 @@ async function loadSimulationData() {
   const res  = await fetch('/simulation.json');
   const data = await res.json();
   const resources    = data.resources || {};
-  const stationNames = {
-    ambulance: ['Station 1 - Downtown', 'Station 2 - Seminole Hts', 'Station 3 - South Tampa'],
-    firetruck: ['Fire Station 1 - Downtown', 'Fire Station 2 - Seminole Heights', 'Fire Station 3 - South Tampa'],
-    police:    ['Precinct A - Kennedy', 'Precinct B - Howard Ave', 'Precinct C - North Tampa'],
-  };
   const counters = { ambulance: 0, firetruck: 0, police: 0 };
   VEHICLES = [
     ...(resources.ambulances || []),
@@ -85,10 +80,25 @@ const getVehicleColor = (type) => {
 function App() {
   const mapRef            = useRef(null);
   const vehicleMarkersRef = useRef([]);
- 
-  const [threat, setThreat] = useState({ level: 'low', label: 'THREAT: ASSESSING…' });
-  const [clock,  setClock]  = useState('--:--:-- ET');
- 
+
+  const [threat,      setThreat]      = useState({ level: 'low', label: 'THREAT: ASSESSING…' });
+  const [clock,       setClock]       = useState('--:--:-- ET');
+  const [agentStatus, setAgentStatus] = useState({
+    social: { status: 'idle', msg: 'Standby', count: '—' },
+    image:  { status: 'idle', msg: 'Standby', count: '—' },
+    call:   { status: 'idle', msg: 'Standby', count: '—' },
+    route:  { status: 'idle', msg: 'Standby', count: '—' },
+  });
+  // feedIncidents is the array powering the right panel
+  const [feedIncidents, setFeedIncidents] = useState([]);
+
+  const setAgent = (agent, status, msg, count = null) => {
+    setAgentStatus(prev => ({
+      ...prev,
+      [agent]: { status, msg, count: count !== null ? count : prev[agent].count },
+    }));
+  };
+
   // Live clock
   useEffect(() => {
     const tick = () => {
@@ -104,26 +114,26 @@ function App() {
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
   }, []);
- 
+
   // Map init + simulation data load
   useEffect(() => {
     if (mapRef.current) return;
- 
+
     const map = L.map('map', { zoomControl: true }).setView([27.9506, -82.4572], 12);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors, © CartoDB',
       maxZoom: 19,
     }).addTo(map);
- 
+
     map.on('mousemove', (e) => {
       const el  = document.getElementById('cur-lat');
       const el2 = document.getElementById('cur-lon');
       if (el)  el.innerText  = e.latlng.lat.toFixed(4);
       if (el2) el2.innerText = e.latlng.lng.toFixed(4);
     });
- 
+
     mapRef.current = map;
- 
+
     loadSimulationData().then(() => {
       // Vehicle markers
       VEHICLES.forEach(veh => {
@@ -138,8 +148,6 @@ function App() {
         marker.addTo(map);
         vehicleMarkersRef.current.push({ marker, data: veh });
       });
- 
-      // Hospital markers
       HOSPITALS.forEach(h => {
         const html = `<div class="facility-emoji-marker hospital-emoji-marker"><span>🏥</span></div>`;
         const icon = L.divIcon({ className: '', html, iconSize: [36, 36], iconAnchor: [18, 18] });
@@ -150,8 +158,6 @@ function App() {
           )
           .addTo(map);
       });
- 
-      // Shelter markers
       SHELTERS.forEach(s => {
         const pct  = s.capacity ? Math.round((s.available / s.capacity) * 100) : null;
         const html = `<div class="facility-emoji-marker shelter-emoji-marker"><span>🏠</span></div>`;
@@ -164,14 +170,105 @@ function App() {
           .addTo(map);
       });
     });
- 
+
     return () => { map.remove(); mapRef.current = null; };
   }, []);
- 
+
+  // will be integrated later on
+  const runLocalSocialAgent = async () => {
+    setAgent('social', 'active', 'Scanning social feeds…');
+    await new Promise(r => setTimeout(r, 1200));
+
+    const incidents = SOCIAL_POSTS.map((post, i) => ({
+      id:       `social-${i}`,
+      source:   'Social Media',
+      text:     post.text,
+      lat:      post.lat,
+      lon:      post.lon,
+      severity: computeSeverity(post.text),
+      ts:       Date.now() + i * 80,
+    }));
+
+    setAgent('social', 'done', `Found ${incidents.length} posts`, incidents.length);
+    return incidents;
+  };
+
+  const runLocalSatelliteAgent = async () => {
+    setAgent('image', 'active', 'Analyzing satellite imagery…');
+    await new Promise(r => setTimeout(r, 1600));
+
+    const incidents = SATELLITE_DETECTIONS.map((det, i) => ({
+      id:       `sat-${i}`,
+      source:   'Satellite',
+      text:     det.description || det.text || 'Anomaly detected',
+      lat:      det.lat,
+      lon:      det.lon,
+      severity: det.severity ?? computeSeverity(det.description || det.text || ''),
+      ts:       Date.now() + i * 80,
+    }));
+
+    setAgent('image', 'done', `Detected ${incidents.length} anomalies`, incidents.length);
+    return incidents;
+  };
+
+  const runLocal911Agent = async () => {
+    setAgent('call', 'active', 'Processing 911 transcripts…');
+    await new Promise(r => setTimeout(r, 1000));
+
+    const incidents = CALL_TRANSCRIPTS.map((call, i) => ({
+      id:       `call-${i}`,
+      source:   '911 Call',
+      text:     call.transcript || call.text || 'Emergency reported',
+      lat:      call.lat,
+      lon:      call.lon,
+      severity: computeSeverity(call.transcript || call.text || ''),
+      ts:       Date.now() + i * 80,
+    }));
+
+    setAgent('call', 'done', `Processed ${incidents.length} calls`, incidents.length);
+    return incidents;
+  };
+
+  const runSimulation = async () => {
+    if (!mapRef.current) return;
+
+    // Reset feed
+    setFeedIncidents([]);
+    setThreat({ level: 'low', label: 'THREAT: ASSESSING…' });
+    setAgentStatus({
+      social: { status: 'idle', msg: 'Standby', count: '—' },
+      image:  { status: 'idle', msg: 'Standby', count: '—' },
+      call:   { status: 'idle', msg: 'Standby', count: '—' },
+      route:  { status: 'idle', msg: 'Standby', count: '—' },
+    });
+
+    // Run 3 agents in parallel
+    const [socialInc, satInc, callInc] = await Promise.all([
+      runLocalSocialAgent(),
+      runLocalSatelliteAgent(),
+      runLocal911Agent(),
+    ]);
+
+    const allIncidents = [...socialInc, ...satInc, ...callInc]
+      .sort((a, b) => b.severity - a.severity);
+
+    // Stream incidents into the feed one by one
+    for (let i = 0; i < allIncidents.length; i++) {
+      await new Promise(r => setTimeout(r, 90));
+      setFeedIncidents(prev => {
+        const next = [...prev, allIncidents[i]];
+        setThreat(calcThreat(next));
+        return next;
+      });
+    }
+
+    setAgent('route', 'done', 'Route planning ready');
+  };
+
   return (
     <div className="app">
       <div className="app-main">
- 
+
         {/* Topbar */}
         <div className="topbar">
           <div className="logo">
@@ -183,10 +280,10 @@ function App() {
             <div className={`threat-badge level-${threat.level}`}>{threat.label}</div>
           </div>
         </div>
- 
+
         {/* Three-panel layout */}
         <div className="layout">
- 
+
           {/* Left panel */}
           <div className="left-panel">
             <div className="ph">
@@ -197,11 +294,33 @@ function App() {
               <span className="ph-label">Agent Network</span>
               <span className="ph-badge">0 / 4</span>
             </div>
-            <div className="panel-placeholder">
-              Agents will appear here
+
+            {/* Agent rows */}
+            <div className="agents-wrap">
+              {['social', 'image', 'call', 'route'].map(agent => (
+                <div className="agent-row" key={agent}>
+                  <div className={`ag-dot ${agentStatus[agent].status}`}></div>
+                  <div className="ag-info">
+                    <div className="ag-name">
+                      {agent === 'social' && 'Social Media Agent'}
+                      {agent === 'image'  && 'Satellite Image Agent'}
+                      {agent === 'call'   && '911 Call Agent'}
+                      {agent === 'route'  && 'Route Agent'}
+                    </div>
+                    <div className="ag-sub">{agentStatus[agent].msg}</div>
+                  </div>
+                  <div className="ag-count">{agentStatus[agent].count}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="run-wrap">
+              <button id="run-btn" onClick={runSimulation}>
+                <span>▶ Run Simulation</span>
+              </button>
             </div>
           </div>
- 
+
           {/* Map area */}
           <div className="map-area">
             <div id="map"></div>
@@ -213,25 +332,44 @@ function App() {
               </div>
             </div>
           </div>
- 
-          {/* Right panel */}
+
+          {/* Right panel — Incident Feed */}
           <div className="right-panel">
             <div className="ph">
               <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
                 <path d="M1 8L4 5L6 7L9 3" stroke="#8fa3b8" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
               <span className="ph-label">Incident Feed</span>
-              <span className="ph-badge">0</span>
+              <span className="ph-badge">{feedIncidents.length}</span>
             </div>
-            <div className="panel-placeholder">
-              Incidents will appear here
+            <div className="incident-list">
+              {feedIncidents.length === 0 ? (
+                <div style={{ padding: '24px 14px', textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--text-dim)' }}>
+                  Awaiting simulation…
+                </div>
+              ) : (
+                feedIncidents.map((inc, idx) => {
+                  const col = sevCol(inc.severity);
+                  return (
+                    <div className="inc-item" key={idx}>
+                      <div className="inc-bar" style={{ background: col }}></div>
+                      <div className="inc-body">
+                        <div className="inc-src">{inc.source}</div>
+                        <div className="inc-txt">{inc.text}</div>
+                        <div className="inc-coord">{inc.lat.toFixed(4)}, {inc.lon.toFixed(4)}</div>
+                      </div>
+                      <div className="inc-sev" style={{ color: col }}>{Math.round(inc.severity * 100)}</div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
- 
+
         </div>
       </div>
     </div>
   );
 }
- 
+
 export default App;
