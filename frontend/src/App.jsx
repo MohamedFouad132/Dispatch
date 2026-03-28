@@ -33,7 +33,7 @@ const calcThreat = (incidents) => {
 function App() {
   const [threat, setThreat] = useState({ level: 'low', label: 'THREAT: ASSESSING…' });
   const [clock,  setClock]  = useState('--:--:-- ET');
-
+ 
   // Live clock
   useEffect(() => {
     const tick = () => {
@@ -49,10 +49,12 @@ function App() {
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
   }, []);
-
+ 
   return (
     <div className="app">
       <div className="app-main">
+ 
+        {/* Topbar */}
         <div className="topbar">
           <div className="logo">
             <div className="logo-emoji">🚑</div>
@@ -63,9 +65,55 @@ function App() {
             <div className={`threat-badge level-${threat.level}`}>{threat.label}</div>
           </div>
         </div>
+ 
+        {/* Three-panel layout */}
+        <div className="layout">
+ 
+          {/* Left panel */}
+          <div className="left-panel">
+            <div className="ph">
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                <circle cx="5.5" cy="5.5" r="4" stroke="#8fa3b8" strokeWidth="1.2"/>
+                <path d="M5.5 3.5V6.5M5.5 7.5V8" stroke="#8fa3b8" strokeWidth="1.2" strokeLinecap="round"/>
+              </svg>
+              <span className="ph-label">Agent Network</span>
+              <span className="ph-badge">0 / 4</span>
+            </div>
+            <div className="panel-placeholder">
+              Agents will appear here
+            </div>
+          </div>
+ 
+          {/* Map area */}
+          <div className="map-area">
+            <div id="map"></div>
+            <div className="map-foot">
+              <div className="mf-stat">LAT <span id="cur-lat">—</span></div>
+              <div className="mf-stat">LON <span id="cur-lon">—</span></div>
+              <div className="mf-stat" style={{ marginLeft: 'auto' }}>
+                Tampa Bay, FL
+              </div>
+            </div>
+          </div>
+ 
+          {/* Right panel */}
+          <div className="right-panel">
+            <div className="ph">
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                <path d="M1 8L4 5L6 7L9 3" stroke="#8fa3b8" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span className="ph-label">Incident Feed</span>
+              <span className="ph-badge">0</span>
+            </div>
+            <div className="panel-placeholder">
+              Incidents will appear here
+            </div>
+          </div>
+ 
+        </div>
       </div>
     </div>
   );
 }
-
+ 
 export default App;
