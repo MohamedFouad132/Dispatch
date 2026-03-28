@@ -232,7 +232,7 @@ function App() {
     //Social Media Agent
     setAgent('social', 'active', 'Scanning social feeds…');
     addLog('social', 'Scanning social media for distress signals…');
-    await new Promise(r => setTimeout(r, 1400));
+    await new Promise(r => setTimeout(r, 9000));
     const socialInc = SOCIAL_POSTS.map((post, i) => ({
       id: `social-${i}`, source: 'SOCIAL MEDIA',
       text: post.text, lat: post.lat, lon: post.lon,
@@ -240,7 +240,7 @@ function App() {
     }));
     setAgent('social', 'done', 'Complete', socialInc.length);
     for (let i = 0; i < socialInc.length; i++) {
-      await new Promise(r => setTimeout(r, 90));
+      await new Promise(r => setTimeout(r, 300));
       setFeedIncidents(prev => { const next = [...prev, socialInc[i]]; setThreat(calcThreat(next)); return next; });
     }
     addLog('social', `✓ Complete — ${socialInc.length} incidents queued.`);
@@ -248,7 +248,7 @@ function App() {
     //Satellite Image Agent
     setAgent('image', 'active', 'Processing satellite imagery…');
     addLog('image', 'Analyzing satellite imagery for damage signatures…');
-    await new Promise(r => setTimeout(r, 1800));
+    await new Promise(r => setTimeout(r, 9000));
     const satInc = SATELLITE_DETECTIONS.map((det, i) => ({
       id: `sat-${i}`, source: 'SATELLITE IMAGE',
       text: det.description || det.text || 'Anomaly detected',
@@ -257,7 +257,7 @@ function App() {
     }));
     setAgent('image', 'done', 'Complete', satInc.length);
     for (let i = 0; i < satInc.length; i++) {
-      await new Promise(r => setTimeout(r, 90));
+      await new Promise(r => setTimeout(r, 300));
       setFeedIncidents(prev => { const next = [...prev, satInc[i]]; setThreat(calcThreat(next)); return next; });
     }
     addLog('image', `✓ Complete — ${satInc.length} detections confirmed.`);
@@ -265,7 +265,7 @@ function App() {
     //911 Call Agent
     setAgent('call', 'active', 'Processing 911 transcripts…');
     addLog('call', 'Transcribing and triaging 911 call queue…');
-    await new Promise(r => setTimeout(r, 1200));
+    await new Promise(r => setTimeout(r, 9000));
     const callInc = CALL_TRANSCRIPTS.map((call, i) => ({
       id: `call-${i}`, source: '911 DISPATCH',
       text: call.transcript || call.text || 'Emergency reported',
@@ -274,7 +274,7 @@ function App() {
     }));
     setAgent('call', 'done', 'Complete', callInc.length);
     for (let i = 0; i < callInc.length; i++) {
-      await new Promise(r => setTimeout(r, 90));
+      await new Promise(r => setTimeout(r, 300));
       setFeedIncidents(prev => { const next = [...prev, callInc[i]]; setThreat(calcThreat(next)); return next; });
     }
     addLog('call', `✓ Complete — ${callInc.length} calls processed.`);
