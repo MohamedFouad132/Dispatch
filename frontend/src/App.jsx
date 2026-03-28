@@ -31,9 +31,9 @@ const calcThreat = (incidents) => {
   return                                { level: 'critical',  label: 'THREAT: CRITICAL' };
 };
 
-let VEHICLES   = [];
-let HOSPITALS  = [];
-let SHELTERS   = [];
+let VEHICLES             = [];
+let HOSPITALS            = [];
+let SHELTERS             = [];
 let SOCIAL_POSTS         = [];
 let SATELLITE_DETECTIONS = [];
 let CALL_TRANSCRIPTS     = [];
@@ -42,12 +42,7 @@ async function loadSimulationData() {
   const res  = await fetch('/simulation.json');
   const data = await res.json();
   const resources    = data.resources || {};
-  const stationNames = {
-    ambulance: ['Station 1 - Downtown', 'Station 2 - Seminole Hts', 'Station 3 - South Tampa'],
-    firetruck: ['Fire Station 1 - Downtown', 'Fire Station 2 - Seminole Heights', 'Fire Station 3 - South Tampa'],
-    police:    ['Precinct A - Kennedy', 'Precinct B - Howard Ave', 'Precinct C - North Tampa'],
-  };
-  const counters = { ambulance: 0, firetruck: 0, police: 0 };
+  const counters     = { ambulance: 0, firetruck: 0, police: 0 };
   VEHICLES = [
     ...(resources.ambulances || []),
     ...(resources.firetrucks || []),
@@ -57,23 +52,23 @@ async function loadSimulationData() {
     const idx  = counters[type] ?? 0;
     counters[type] = idx + 1;
     return {
-      id:      v.id,
+      id:    v.id,
       type,
-      emoji:   v.emoji,
-      lat:     v.lat,
-      lon:     v.lon,
-      label:   v.id,
+      emoji: v.emoji,
+      lat:   v.lat,
+      lon:   v.lon,
+      label: v.id,
     };
   });
 
-  HOSPITALS  = (data.hospitals  || []).map(h => ({ name: h.name, lat: h.lat, lon: h.lon, status: h.status }));
-  SHELTERS   = (data.shelters   || []).map(s => ({ name: s.name, lat: s.lat, lon: s.lon, capacity: s.capacity, available: s.available }));
+  HOSPITALS            = (data.hospitals            || []).map(h => ({ name: h.name, lat: h.lat, lon: h.lon, status: h.status }));
+  SHELTERS             = (data.shelters             || []).map(s => ({ name: s.name, lat: s.lat, lon: s.lon, capacity: s.capacity, available: s.available }));
   SOCIAL_POSTS         = data.social_posts         || [];
   SATELLITE_DETECTIONS = data.satellite_detections || [];
   CALL_TRANSCRIPTS     = data.call_transcripts     || [];
   return data;
 }
- 
+
 const getVehicleColor = (type) => {
   if (type === 'ambulance') return '#16a34a';
   if (type === 'firetruck') return '#ef4444';
@@ -81,6 +76,7 @@ const getVehicleColor = (type) => {
   return '#f59e0b';
 };
 
+// Scores incident severity from text keywords — used as local fallback when backend is offline
 function computeSeverity(text) {
   const lower = text.toLowerCase();
   if (lower.includes('trapped') || lower.includes('collapse') || lower.includes('explosion')) return 0.95;
@@ -91,27 +87,28 @@ function computeSeverity(text) {
   return 0.50;
 }
 
-
 function App() {
   const mapRef            = useRef(null);
   const vehicleMarkersRef = useRef([]);
- 
-  const [threat,      setThreat]      = useState({ level: 'low', label: 'THREAT: ASSESSING…' });
-  const [clock,       setClock]       = useState('--:--:-- ET');
-  const [agentStatus, setAgentStatus] = useState({
+
+  const [threat,        setThreat]        = useState({ level: 'low', label: 'THREAT: ASSESSING…' });
+  const [clock,         setClock]         = useState('--:--:-- ET');
+  const [running,       setRunning]       = useState(false);
+  const [feedIncidents, setFeedIncidents] = useState([]);
+  const [agentStatus,   setAgentStatus]   = useState({
     social: { status: 'idle', msg: 'Standby', count: '—' },
     image:  { status: 'idle', msg: 'Standby', count: '—' },
     call:   { status: 'idle', msg: 'Standby', count: '—' },
     route:  { status: 'idle', msg: 'Standby', count: '—' },
   });
- 
+
   const setAgent = (agent, status, msg, count = null) => {
     setAgentStatus(prev => ({
       ...prev,
       [agent]: { status, msg, count: count !== null ? count : prev[agent].count },
     }));
   };
- 
+
   // Live clock
   useEffect(() => {
     const tick = () => {
@@ -148,6 +145,7 @@ function App() {
     mapRef.current = map;
 
     loadSimulationData().then(() => {
+      // Vehicle markers
       VEHICLES.forEach(veh => {
         const col  = getVehicleColor(veh.type);
         const html = `<div class="vehicle-marker" style="color:${col}">
@@ -160,7 +158,8 @@ function App() {
         marker.addTo(map);
         vehicleMarkersRef.current.push({ marker, data: veh });
       });
- 
+
+      // Hospital markers
       HOSPITALS.forEach(h => {
         const html = `<div class="facility-emoji-marker hospital-emoji-marker"><span>🏥</span></div>`;
         const icon = L.divIcon({ className: '', html, iconSize: [36, 36], iconAnchor: [18, 18] });
@@ -171,7 +170,8 @@ function App() {
           )
           .addTo(map);
       });
- 
+
+      // Shelter markers
       SHELTERS.forEach(s => {
         const pct  = s.capacity ? Math.round((s.available / s.capacity) * 100) : null;
         const html = `<div class="facility-emoji-marker shelter-emoji-marker"><span>🏠</span></div>`;
@@ -188,7 +188,7 @@ function App() {
     return () => { map.remove(); mapRef.current = null; };
   }, []);
 
-   // Agents run strictly one after the other
+  // Agents run strictly one after the other
   const runSimulation = async () => {
     if (running || !mapRef.current) return;
     setRunning(true);
@@ -231,25 +231,25 @@ function App() {
       setFeedIncidents(prev => { const next = [...prev, satInc[i]]; setThreat(calcThreat(next)); return next; });
     }
 
-  // 3 — 911 Call Agent
-  setAgent('call', 'active', 'Processing 911 transcripts…');
-  await new Promise(r => setTimeout(r, 1200));
-  const callInc = CALL_TRANSCRIPTS.map((call, i) => ({
-    id: `call-${i}`, source: '911 Call',
-    text: call.transcript || call.text || 'Emergency reported',
-    lat: call.lat, lon: call.lon,
-    severity: computeSeverity(call.transcript || call.text || ''),
-  }));
-  setAgent('call', 'done', `Processed ${callInc.length} calls`, callInc.length);
-  for (let i = 0; i < callInc.length; i++) {
-    await new Promise(r => setTimeout(r, 90));
-    setFeedIncidents(prev => { const next = [...prev, callInc[i]]; setThreat(calcThreat(next)); return next; });
-  }
+    // 3 — 911 Call Agent
+    setAgent('call', 'active', 'Processing 911 transcripts…');
+    await new Promise(r => setTimeout(r, 1200));
+    const callInc = CALL_TRANSCRIPTS.map((call, i) => ({
+      id: `call-${i}`, source: '911 Call',
+      text: call.transcript || call.text || 'Emergency reported',
+      lat: call.lat, lon: call.lon,
+      severity: computeSeverity(call.transcript || call.text || ''),
+    }));
+    setAgent('call', 'done', `Processed ${callInc.length} calls`, callInc.length);
+    for (let i = 0; i < callInc.length; i++) {
+      await new Promise(r => setTimeout(r, 90));
+      setFeedIncidents(prev => { const next = [...prev, callInc[i]]; setThreat(calcThreat(next)); return next; });
+    }
 
-  // 4 — Route Agent
-  setAgent('route', 'done', 'Route planning ready');
-  setRunning(false);
-};
+    // 4 — Route Agent (placeholder, wired in later commit)
+    setAgent('route', 'done', 'Route planning ready');
+    setRunning(false);
+  };
 
   return (
     <div className="app">
@@ -282,7 +282,7 @@ function App() {
                 {Object.values(agentStatus).filter(a => a.status === 'done').length} / 4
               </span>
             </div>
- 
+
             {/* Agent rows */}
             <div className="agents-wrap">
               {['social', 'image', 'call', 'route'].map(agent => (
@@ -300,6 +300,17 @@ function App() {
                   <div className="ag-count">{agentStatus[agent].count}</div>
                 </div>
               ))}
+            </div>
+
+            <div className="run-wrap">
+              <button
+                id="run-btn"
+                onClick={runSimulation}
+                className={running ? 'running' : ''}
+                disabled={running}
+              >
+                <span>{running ? '⟳ Agents Running…' : '▶ Start Agents'}</span>
+              </button>
             </div>
           </div>
 
