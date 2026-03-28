@@ -95,26 +95,24 @@ function computeSeverity(text) {
 function App() {
   const mapRef            = useRef(null);
   const vehicleMarkersRef = useRef([]);
-
+ 
   const [threat,      setThreat]      = useState({ level: 'low', label: 'THREAT: ASSESSING…' });
   const [clock,       setClock]       = useState('--:--:-- ET');
-  const [running,     setRunning]     = useState(false);
   const [agentStatus, setAgentStatus] = useState({
     social: { status: 'idle', msg: 'Standby', count: '—' },
     image:  { status: 'idle', msg: 'Standby', count: '—' },
     call:   { status: 'idle', msg: 'Standby', count: '—' },
     route:  { status: 'idle', msg: 'Standby', count: '—' },
   });
-  const [feedIncidents, setFeedIncidents] = useState([]);
-
+ 
   const setAgent = (agent, status, msg, count = null) => {
     setAgentStatus(prev => ({
       ...prev,
       [agent]: { status, msg, count: count !== null ? count : prev[agent].count },
     }));
   };
-
-  // Live ET clock
+ 
+  // Live clock
   useEffect(() => {
     const tick = () => {
       const now = new Date();
@@ -162,7 +160,7 @@ function App() {
         marker.addTo(map);
         vehicleMarkersRef.current.push({ marker, data: veh });
       });
-
+ 
       HOSPITALS.forEach(h => {
         const html = `<div class="facility-emoji-marker hospital-emoji-marker"><span>🏥</span></div>`;
         const icon = L.divIcon({ className: '', html, iconSize: [36, 36], iconAnchor: [18, 18] });
@@ -173,7 +171,7 @@ function App() {
           )
           .addTo(map);
       });
-
+ 
       SHELTERS.forEach(s => {
         const pct  = s.capacity ? Math.round((s.available / s.capacity) * 100) : null;
         const html = `<div class="facility-emoji-marker shelter-emoji-marker"><span>🏠</span></div>`;
@@ -284,7 +282,8 @@ function App() {
                 {Object.values(agentStatus).filter(a => a.status === 'done').length} / 4
               </span>
             </div>
-
+ 
+            {/* Agent rows */}
             <div className="agents-wrap">
               {['social', 'image', 'call', 'route'].map(agent => (
                 <div className="agent-row" key={agent}>
@@ -301,17 +300,6 @@ function App() {
                   <div className="ag-count">{agentStatus[agent].count}</div>
                 </div>
               ))}
-            </div>
-
-            <div className="run-wrap">
-              <button
-                id="run-btn"
-                onClick={runSimulation}
-                className={running ? 'running' : ''}
-                disabled={running}
-              >
-                <span>{running ? '⟳ Agents Running…' : '▶ Start Agents'}</span>
-              </button>
             </div>
           </div>
 
