@@ -103,6 +103,59 @@ html, body, #root {
   display: flex; flex-direction: column; overflow: hidden;
 }
 
+/* ── Agent Network ──────────────────────────────────────────── */
+.agents-wrap {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.agent-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  transition: background 0.15s;
+}
+.agent-row:hover { background: #ffffff06; }
+
+.ag-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background 0.3s, box-shadow 0.3s;
+}
+.ag-dot.idle   { background: var(--text-dim); }
+.ag-dot.active {
+  background: var(--yellow);
+  box-shadow: 0 0 6px var(--yellow);
+  animation: dot-pulse 1s infinite;
+}
+.ag-dot.done   { background: var(--green); box-shadow: 0 0 6px #16a34a80; }
+
+@keyframes dot-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+.ag-info { flex: 1; min-width: 0; }
+.ag-name {
+  font-size: 10px; font-weight: 700;
+  color: var(--text); letter-spacing: 0.04em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ag-sub {
+  font-size: 9px; color: var(--text-dim);
+  margin-top: 1px; letter-spacing: 0.03em;
+}
+
+.ag-count {
+  font-size: 10px; font-weight: 700;
+  color: var(--text-mid);
+  min-width: 20px; text-align: right;
+}
+
 /* ── Map Area ───────────────────────────────────────────────── */
 .map-area {
   position: relative; display: flex;
@@ -137,34 +190,21 @@ html, body, #root {
 
 /* ── Vehicle Markers ────────────────────────────────────────── */
 .vehicle-marker {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  cursor: pointer;
-  transition: transform 0.15s;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 2px; cursor: pointer; transition: transform 0.15s;
 }
 .vehicle-marker:hover { transform: scale(1.08); }
-.vehicle-emoji {
-  font-size: 20px;
-  line-height: 1.2;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
-}
+.vehicle-emoji { font-size: 20px; line-height: 1.2; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4)); }
 .vehicle-label {
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  background: #0a0e14cc;
-  padding: 1px 5px;
-  border-radius: 3px;
-  border: 1px solid currentColor;
+  font-size: 8px; font-weight: 700; letter-spacing: 0.06em;
+  background: #0a0e14cc; padding: 1px 5px;
+  border-radius: 3px; border: 1px solid currentColor;
 }
 
 /* ── Facility Markers ───────────────────────────────────────── */
 .facility-emoji-marker {
   display: flex; align-items: center; justify-content: center;
-  width: 36px; height: 36px; border-radius: 50%;
-  border: 2px solid;
+  width: 36px; height: 36px; border-radius: 50%; border: 2px solid;
   cursor: pointer; transition: transform 0.15s;
 }
 .facility-emoji-marker:hover { transform: scale(1.1); }
@@ -174,14 +214,9 @@ html, body, #root {
 
 /* ── Facility Tooltip ───────────────────────────────────────── */
 .facility-tooltip {
-  background: #0f1520 !important;
-  border: 1px solid #1e2a38 !important;
-  color: #cdd6e0 !important;
-  font-family: var(--font-mono) !important;
-  font-size: 11px !important;
-  border-radius: 4px !important;
+  background: #0f1520 !important; border: 1px solid #1e2a38 !important;
+  color: #cdd6e0 !important; font-family: var(--font-mono) !important;
+  font-size: 11px !important; border-radius: 4px !important;
   padding: 5px 8px !important;
 }
-.leaflet-tooltip-top.facility-tooltip::before {
-  border-top-color: #1e2a38 !important;
-}
+.leaflet-tooltip-top.facility-tooltip::before { border-top-color: #1e2a38 !important; }
