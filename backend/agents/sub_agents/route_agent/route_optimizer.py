@@ -358,38 +358,3 @@ def nearest_neighbor_sort(origin: Tuple[float, float], points: List[Dict[str, An
         remaining.pop(best_idx)
     
     return ordered
-
-def evaluate_routes(routes: List[Dict[str, Any]], incidents: List[Dict[str, Any]]) -> float:
-    """Calculate a score for the route quality (0-100)."""
-    if not routes:
-        return 0.0
-    
-    total_dist = sum(r.get("distance", 0) for r in routes)
-    total_time = sum(r.get("duration", 0) for r in routes)
-    max_time = max(r.get("duration", 0) for r in routes) if routes else 0
-    
-    # Penalty for high severity incidents not addressed quickly
-    severity_wait = 0
-    incident_map = {inc["id"]: inc for inc in incidents}
-    
-    for route in routes:
-        elapsed = 0
-        for stop in route.get("stops", []):
-            elapsed += travel_time_minutes(haversine(
-                route["startLat"], route["startLon"],
-                stop["lat"], stop["lon"]
-            )) if stop.get("severity", 0) > 0 else 0
-            inc = incident_map.get(stop.get("id"))
-            if inc and inc.get("severity", 0) >= 0.85:
-                severity_wait += elapsed * 2
-            elif inc and inc.get("severity", 0) >= 0.65:
-                severity_wait += elapsed * 1
-    
-    # Distance score (lower is better)
-    dist_score = max(0, 100 - (total_dist / max(len(incidents), 1) / 2) * 30)
-    # Balance score (avoid sending one vehicle to do everything)
-    balance_score = max(0, 100 - (max_time / 120) * 30)
-    # Severity response score (respond quickly to critical incidents)
-    wait_score = max(0, 100 - (severity_wait / 60) * 40)
-    
-    return min(100, max(0, (dist_score + balance_score + wait_score) / 3))
