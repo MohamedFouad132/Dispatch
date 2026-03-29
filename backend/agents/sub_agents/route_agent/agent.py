@@ -120,6 +120,7 @@ def compute_optimal_routes(tool_context: ToolContext) -> Dict[str, Any]:
         
         # Build optimal routes using route_optimizer
         routes = build_routes(incidents, vehicles, hospitals, shelters)
+        tool_context.state["computed_routes"] = routes
         logger.info(f"Route agent: built {len(routes)} routes with OSRM")
         
         # Count total incidents covered
@@ -129,7 +130,6 @@ def compute_optimal_routes(tool_context: ToolContext) -> Dict[str, Any]:
             "status": "complete",
             "routes_computed": len(routes),
             "total_incidents": total_incidents,
-            "routes": routes
         }
     except Exception as e:
         logger.error(f"Failed to compute optimal routes: {e}", exc_info=True)
@@ -148,7 +148,7 @@ You are the route optimization engine for emergency response dispatch.
 
 Your ONLY job is to:
 1. Call compute_optimal_routes() to determine optimal dispatch routes for all vehicles
-2. Return the routes and metrics in JSON format
+2. Return a success message in JSON format
 
 CRITICAL RULES:
 - You MUST call compute_optimal_routes()
@@ -158,9 +158,8 @@ CRITICAL RULES:
 Output format (NO other text or markdown):
 {
   "status": "complete",
-  "routes_computed": <number>,
-  "total_incidents": <number>,
-  "routes": [<route objects>]
+    "routes_computed": <number_of_routes>,
+    "total_incidents": <number_of_incidents_covered>,
 }
 
 Remember: Call the tool and output only the JSON result.
