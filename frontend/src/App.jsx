@@ -82,6 +82,157 @@ function computeSeverity(text) {
   return 0.50;
 }
 
+// Haversine distance in km between two lat/lon points
+function distance(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// Estimated travel time in minutes at 50km/h average
+function travelTime(distKm) {
+  return (distKm / 50) * 60;
+}
+
+// Assigns incidents to nearest vehicles, orders stops by nearest-neighbor,
+// appends hospital endpoint for ambulances and shelter endpoint for police
+function buildInitialRoutes(incidents, vehicles) {
+  if (!incidents.length) return [];
+  const routes = vehicles.map(veh => ({
+    vehicleId: veh.id, type: veh.type,
+    startLat: veh.lat, startLon: veh.lon, stops: [],
+  }));
+  incidents.forEach(inc => {
+    let minDist = Infinity, bestVeh = 0;
+    vehicles.forEach((veh, idx) => {
+      const d = distance(inc.lat, inc.lon, veh.lat, veh.lon);
+      if (d < minDist) { minDist = d; bestVeh = idx; }
+    });
+    routes[bestVeh].stops.push({ incidentId: inc.id, lat: inc.lat, lon: inc.lon, severity: inc.severity, text: inc.text });
+  });
+  // Order each vehicle's stops by nearest-neighbor greedy
+  routes.forEach(route => {
+    if (!route.stops.length) return;
+    const ordered = [];
+    let current = { lat: route.startLat, lon: route.startLon };
+    const remaining = [...route.stops];
+    while (remaining.length) {
+      let nearestIdx = 0, nearestDist = distance(current.lat, current.lon, remaining[0].lat, remaining[0].lon);
+      for (let i = 1; i < remaining.length; i++) {
+        const d = distance(current.lat, current.lon, remaining[i].lat, remaining[i].lon);
+        if (d < nearestDist) { nearestDist = d; nearestIdx = i; }
+      }
+      ordered.push(remaining[nearestIdx]);
+      current = remaining[nearestIdx];
+      remaining.splice(nearestIdx, 1);
+    }
+    route.stops = ordered;
+  });
+  // Append hospital for ambulances, shelter for police
+  routes.forEach(route => {
+    if (route.type === 'ambulance' && route.stops.length) {
+      const last = route.stops[route.stops.length - 1];
+      let best = HOSPITALS[0], bestD = distance(last.lat, last.lon, best.lat, best.lon);
+      for (let i = 1; i < HOSPITALS.length; i++) {
+        const d = distance(last.lat, last.lon, HOSPITALS[i].lat, HOSPITALS[i].lon);
+        if (d < bestD) { bestD = d; best = HOSPITALS[i]; }
+      }
+      route.stops.push({ incidentId: `hospital-${best.name}`, lat: best.lat, lon: best.lon, severity: 0, text: `Hospital: ${best.name}` });
+    } else if (route.type === 'police' && route.stops.length) {
+      const last = route.stops[route.stops.length - 1];
+      let best = SHELTERS[0], bestD = distance(last.lat, last.lon, best.lat, best.lon);
+      for (let i = 1; i < SHELTERS.length; i++) {
+        const d = distance(last.lat, last.lon, SHELTERS[i].lat, SHELTERS[i].lon);
+        if (d < bestD) { bestD = d; best = SHELTERS[i]; }
+      }
+      route.stops.push({ incidentId: `shelter-${best.name}`, lat: best.lat, lon: best.lon, severity: 0, text: `Shelter: ${best.name}` });
+    }
+  });
+  return routes;
+}
+
+// Fetch real road geometry from OSRM for a list of waypoints
+async function fetchRoadRoute(waypoints) {
+  if (waypoints.length < 2) return null;
+  const coords = waypoints.map(wp => `${wp.lon},${wp.lat}`).join(';');
+  const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=true`;
+  try {
+    const res  = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    const data = await res.json();
+    if (data.code !== 'Ok' || !data.routes?.length) return null;
+    const route    = data.routes[0];
+    const geometry = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+    const steps    = route.legs.flatMap(leg =>
+      leg.steps.map(step => ({
+        instruction: step.maneuver.instruction || (step.maneuver.type + ' ' + (step.maneuver.modifier || '')).trim(),
+        name: step.name || '',
+        distance: step.distance / 1000,
+        duration: step.duration / 60,
+        type: step.maneuver.type,
+        modifier: step.maneuver.modifier,
+        location: step.maneuver.location,
+      }))
+    );
+    return { geometry, distance: route.distance / 1000, duration: route.duration / 60, steps };
+  } catch (err) {
+    return null;
+  }
+}
+
+// Build a full route from start through all stops — falls back to straight lines if OSRM fails
+async function buildFullRoute(start, stops) {
+  if (!stops.length) return null;
+  const waypoints  = [start, ...stops];
+  const roadRoute  = await fetchRoadRoute(waypoints);
+  if (roadRoute) return roadRoute;
+  // Straight-line fallback
+  const straightGeo = waypoints.map(wp => [wp.lat, wp.lon]);
+  let straightDist  = 0;
+  for (let i = 0; i < waypoints.length - 1; i++) {
+    straightDist += distance(waypoints[i].lat, waypoints[i].lon, waypoints[i+1].lat, waypoints[i+1].lon);
+  }
+  return {
+    geometry: straightGeo,
+    distance: straightDist,
+    duration: travelTime(straightDist),
+    steps: [{ instruction: 'Direct route', distance: straightDist, duration: travelTime(straightDist), type: 'depart', modifier: '' }],
+  };
+}
+
+// Interpolate a position along a geometry array at fraction t (0..1)
+function interpolateGeometry(geometry, t) {
+  if (!geometry || geometry.length < 2) return null;
+  const totalSegs = geometry.length - 1;
+  const pos       = t * totalSegs;
+  const segIdx    = Math.min(Math.floor(pos), totalSegs - 1);
+  const segFrac   = pos - segIdx;
+  const a         = geometry[segIdx];
+  const b         = geometry[segIdx + 1];
+  return [a[0] + (b[0] - a[0]) * segFrac, a[1] + (b[1] - a[1]) * segFrac];
+}
+
+// Get bearing in degrees at position t along a geometry
+function getBearingAtT(geometry, t) {
+  if (!geometry || geometry.length < 2) return 0;
+  const totalSegs = geometry.length - 1;
+  const segIdx    = Math.min(Math.floor(t * totalSegs), totalSegs - 1);
+  const a         = geometry[segIdx];
+  const b         = geometry[segIdx + 1];
+  const toRad     = (d) => d * Math.PI / 180;
+  const dLon      = toRad(b[1] - a[1]);
+  const y         = Math.sin(dLon) * Math.cos(toRad(b[0]));
+  const x         = Math.cos(toRad(a[0])) * Math.sin(toRad(b[0])) - Math.sin(toRad(a[0])) * Math.cos(toRad(b[0])) * Math.cos(dLon);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
+// Find current step index based on progress t
+function getCurrentStep(steps, t) {
+  if (!steps || steps.length === 0) return 0;
+  return Math.min(Math.floor(t * steps.length), steps.length - 1);
+}
+
 // ─── Main App ─────────────────────────────────────────────────────────────────
 function App() {
   const mapRef            = useRef(null);
@@ -104,6 +255,14 @@ function App() {
   const [logs, setLogs] = useState([
     { time: '00:00:00', agent: 'sys', msg: 'Agents on standby.' },
   ]);
+
+  const routeLinesRef      = useRef([]);
+  const allIncidentsRef    = useRef([]);
+  const [routes,           setRoutes]           = useState([]);
+  const [optimizing,       setOptimizing]       = useState(false);
+  const [vehicleRoutesData, setVehicleRoutesData] = useState({});
+  const [vehicleRouteStops, setVehicleRouteStops] = useState({});
+  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
   // Updates a single agent's status, message, and optional count
   const setAgent = (agent, status, msg, count = null) => {
@@ -146,7 +305,54 @@ function App() {
   const clearMap = useCallback(() => {
     incMarkersRef.current.forEach(m => { try { mapRef.current?.removeLayer(m); } catch(e) {} });
     incMarkersRef.current = [];
+    routeLinesRef.current.forEach(line => { try { mapRef.current?.removeLayer(line); } catch(e) {} });
+    routeLinesRef.current = [];
+    setRoutes([]);
+    setVehicleRoutesData({});
+    setVehicleRouteStops({});
   }, []);
+
+  // Builds OSRM road routes for all vehicles after incidents are collected
+  const optimizeRoutes = async (incidents) => {
+    if (!incidents.length) return;
+    setOptimizing(true);
+    setAgent('route', 'active', 'Optimizing routes…');
+    addLog('route', 'Initializing route optimization across all units…');
+    const currentRoutes  = buildInitialRoutes(incidents, VEHICLES);
+    const newVehicleRoutes = {};
+    const newVehicleStops  = {};
+    for (const route of currentRoutes) {
+      const vehicle = VEHICLES.find(v => v.id === route.vehicleId);
+      if (!vehicle) continue;
+      // Separate endpoint (hospital/shelter, severity 0) from incident stops
+      const allStops   = route.stops;
+      const lastStop   = allStops[allStops.length - 1];
+      const hasEndpoint = lastStop && lastStop.severity === 0;
+      const incidentStops = hasEndpoint ? allStops.slice(0, -1) : allStops;
+      const endpoint = hasEndpoint ? {
+        lat: lastStop.lat, lon: lastStop.lon,
+        name: lastStop.text.replace(/^Hospital: |^Shelter: /, ''),
+        type: lastStop.incidentId?.startsWith('hospital') ? 'hospital' : 'shelter',
+      } : null;
+      const start     = { lat: route.startLat, lon: route.startLon };
+      const waypoints = [...incidentStops.map(s => ({ lat: s.lat, lon: s.lon }))];
+      if (endpoint) waypoints.push({ lat: endpoint.lat, lon: endpoint.lon });
+      const fullRoute = await buildFullRoute(start, waypoints);
+      if (fullRoute) {
+        newVehicleRoutes[vehicle.id] = { ...fullRoute, endpoint };
+        newVehicleStops[vehicle.id]  = incidentStops;
+      }
+      await sleep(400);
+    }
+    setVehicleRoutesData(newVehicleRoutes);
+    setVehicleRouteStops(newVehicleStops);
+    setRoutes(currentRoutes);
+    routeLinesRef.current.forEach(line => { try { mapRef.current?.removeLayer(line); } catch(e) {} });
+    routeLinesRef.current = [];
+    addLog('route', `✓ Complete — ${currentRoutes.length} routes calculated and ready for dispatch`);
+    setAgent('route', 'done', 'Complete', `${currentRoutes.length} routes`);
+    setOptimizing(false);
+  };
 
   // Auto-scroll log to bottom whenever a new entry is appended
   useEffect(() => {
@@ -317,13 +523,13 @@ function App() {
     addLog('call', `✓ Complete — ${callInc.length} calls processed.`);
     setProg(75);
 
-    // 4 — Route Agent (placeholder, wired in next commit)
+    // 4 — Route Agent
     setAgent('route', 'active', 'Calculating optimal routes…');
     addLog('route', 'Initializing route optimization across all units…');
-    await new Promise(r => setTimeout(r, 9000));
-    setAgent('route', 'done', 'Route planning ready');
-    addLog('route', '✓ Complete — routes ready for dispatch.');
-    addLog('sys', 'All agents complete. Awaiting dispatch command.');
+    const allInc = [...socialInc, ...satInc, ...callInc];
+    allIncidentsRef.current = allInc;
+    await optimizeRoutes(allInc);
+    addLog('sys', 'Routes ready. Click DISPATCH to deploy all units.');
     setProg(100);
 
     setTimeout(() => { if (progressWrap) progressWrap.style.display = 'none'; }, 900);
