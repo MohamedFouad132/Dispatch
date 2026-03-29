@@ -132,12 +132,36 @@
 .ag-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 .ag-dot.idle   { background: var(--text-dim); }
 .ag-dot.active { background: var(--amber); box-shadow: 0 0 6px var(--amber); animation: blink 0.7s infinite; }
-.ag-dot.done   { background: var(--green);  box-shadow: 0 0 5px var(--green); }
+.ag-dot.done   { background: var(--green); box-shadow: 0 0 5px var(--green); }
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.25} }
 .ag-info { flex: 1; min-width: 0; }
 .ag-name { font-family: var(--font-display); font-weight: 600; font-size: 12px; color: var(--text-primary); }
 .ag-sub  { font-family: var(--font-mono); font-size: 9px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ag-count { font-family: var(--font-mono); font-size: 10px; color: var(--text-secondary); flex-shrink: 0; }
+
+/* ── Vehicle Legend ─────────────────────────────────────────────────────── */
+.vehicles-legend { flex: 1; overflow-y: auto; min-height: 0; }
+.vehicle-row {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.15s;
+}
+.vehicle-row.clickable { cursor: pointer; }
+.vehicle-row.clickable:hover { background: var(--bg-card); }
+.veh-emoji  { font-size: 16px; flex-shrink: 0; }
+.veh-info   { flex: 1; min-width: 0; }
+.veh-name   { font-family: var(--font-display); font-weight: 700; font-size: 11px; color: var(--text-primary); }
+.veh-detail { font-family: var(--font-mono); font-size: 9px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.veh-nav-btn {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 0.1em;
+  flex-shrink: 0;
+}
 
 /* ── Metrics Strip ──────────────────────────────────────────────────────── */
 .metrics-strip {
@@ -209,8 +233,6 @@
   pointer-events: none;
   z-index: 500;
 }
-
-/* Scan line — sweeps top to bottom during simulation */
 #scan-line {
   position: absolute;
   left: 0; right: 0; height: 2px;
@@ -221,8 +243,6 @@
 }
 #scan-line.on { display: block; animation: scan 2s linear infinite; }
 @keyframes scan { from{top:0%} to{top:100%} }
-
-/* Progress bar — sits along the top edge of the map */
 #progress-wrap {
   position: absolute;
   top: 0; left: 0; right: 0; height: 2px;
@@ -236,7 +256,6 @@
   width: 0%;
   transition: width 0.35s ease;
 }
-
 .map-foot {
   position: absolute;
   bottom: 0; left: 0; right: 0;
@@ -252,7 +271,26 @@
 .mf-stat { font-family: var(--font-mono); font-size: 9px; color: #cbd5e6; }
 .mf-stat span { color: #f1f5f9; }
 
-/* ── Vehicle Markers ────────────────────────────────────────────────────── */
+/* Map hint — shown when routes are ready */
+.map-hint {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(10,20,30,0.85);
+  color: var(--amber);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 5px 14px;
+  border-radius: 3px;
+  border: 1px solid rgba(245,158,11,0.3);
+  z-index: 600;
+  pointer-events: none;
+  white-space: nowrap;
+  animation: fade-in 0.5s ease;
+}
+
+/* ── Vehicle Markers (on map) ───────────────────────────────────────────── */
 .vehicle-marker {
   display: flex;
   flex-direction: column;
@@ -274,7 +312,7 @@
   letter-spacing: 0.08em;
 }
 
-/* ── Incident Markers (map pins) ────────────────────────────────────────── */
+/* ── Incident Markers ───────────────────────────────────────────────────── */
 .inc-marker-wrap { pointer-events: all; }
 .inc-pin { display: flex; flex-direction: column; align-items: center; }
 .inc-label {
@@ -313,13 +351,12 @@
 }
 @keyframes ring-out { 0%{transform:scale(0.5);opacity:0.6} 100%{transform:scale(2.6);opacity:0} }
 
-/* ── Facility markers ───────────────────────────────────────────────────── */
+/* ── Facility Markers ───────────────────────────────────────────────────── */
 .facility-emoji-marker {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 36px; height: 36px;
   border-radius: 50%;
   border: 2px solid;
   background: rgba(8, 14, 22, 0.88);
@@ -328,10 +365,9 @@
   cursor: default;
 }
 .facility-emoji-marker:hover { transform: scale(1.15); }
-.facility-emoji-marker span { font-size: 18px; line-height: 1; }
+.facility-emoji-marker span  { font-size: 18px; line-height: 1; }
 .hospital-emoji-marker { border-color: #ef4444; box-shadow: 0 0 8px #ef444460; }
 .shelter-emoji-marker  { border-color: #8b5cf6; box-shadow: 0 0 8px #8b5cf660; }
-
 .facility-tooltip {
   background: #fff;
   border: 1px solid #ccc;
@@ -343,6 +379,19 @@
   box-shadow: 0 2px 8px rgba(0,0,0,0.18);
 }
 .facility-tooltip::before { display: none; }
+
+/* ── Endpoint markers ───────────────────────────────────────────────────── */
+.nav-endpoint-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  border: 2px solid;
+  font-size: 17px;
+  background: rgba(10,10,20,0.92);
+  box-shadow: 0 0 12px rgba(0,0,0,0.45);
+}
 
 /* ── Right Panel ────────────────────────────────────────────────────────── */
 .right-panel {
@@ -364,8 +413,8 @@
 }
 @keyframes slide-in { from{opacity:0;transform:translateX(6px)} to{opacity:1;transform:translateX(0)} }
 .inc-item:hover { background: var(--bg-card); }
-.inc-bar { width: 3px; align-self: stretch; border-radius: 1px; flex-shrink: 0; }
-.inc-body { flex: 1; min-width: 0; }
+.inc-bar   { width: 3px; align-self: stretch; border-radius: 1px; flex-shrink: 0; }
+.inc-body  { flex: 1; min-width: 0; }
 .inc-src   { font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 2px; }
 .inc-txt   { font-size: 11px; color: var(--text-primary); line-height: 1.45; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .inc-coord { font-family: var(--font-mono); font-size: 8px; color: var(--text-dim); margin-top: 2px; }
@@ -388,8 +437,7 @@
   gap: 7px;
 }
 .log-dot {
-  width: 5px;
-  height: 5px;
+  width: 5px; height: 5px;
   border-radius: 50%;
   background: var(--green);
   box-shadow: 0 0 5px var(--green);
@@ -418,6 +466,7 @@
   gap: 5px;
   animation: fade-in 0.3s ease;
 }
+@keyframes fade-in { from{opacity:0} to{opacity:1} }
 .ll-time { flex-shrink: 0; color: #6f8faa; }
 .ll-ag.social { color: var(--cyan); }
 .ll-ag.image  { color: #a78bfa; }
@@ -426,4 +475,214 @@
 .ll-ag.sys    { color: #9aaebf; }
 .ll-msg { color: var(--text-secondary); }
 
-@keyframes fade-in { from{opacity:0} to{opacity:1} }
+/* ══════════════════════════════════════════════════════════════════════════
+   NAVIGATION VIEW — Full-screen pre-dispatch route inspector
+══════════════════════════════════════════════════════════════════════════ */
+.nav-view {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  background: #111820;
+  font-family: var(--font-body);
+  animation: nav-slide-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes nav-slide-in { from{opacity:0;transform:translateY(30px)} to{opacity:1;transform:translateY(0)} }
+
+.nav-topbar {
+  flex-shrink: 0;
+  height: 56px;
+  background: #0a1118;
+  border-bottom: 2px solid;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 16px;
+  z-index: 10;
+}
+.nav-back {
+  background: none;
+  border: 1px solid currentColor;
+  padding: 6px 14px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all 0.15s;
+}
+.nav-back:hover { background: rgba(255,255,255,0.08); }
+.nav-vehicle-id {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 22px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.nav-station {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-left: 4px;
+}
+
+.nav-body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Nav Map */
+.nav-map-wrap {
+  position: relative;
+  overflow: hidden;
+}
+#nav-map {
+  width: 100%;
+  height: 100%;
+}
+
+/* Stats bar sitting on the bottom of the map */
+.nav-stats-bar {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  z-index: 600;
+  background: rgba(8, 14, 22, 0.94);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid rgba(255,255,255,0.08);
+  display: flex;
+  align-items: center;
+  padding: 12px 24px;
+}
+.nav-stat { flex: 1; text-align: center; }
+.nav-stat-val {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 28px;
+  color: var(--text-primary);
+  line-height: 1;
+}
+.nav-stat-val span {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-dim);
+}
+.nav-stat-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  margin-top: 3px;
+}
+.nav-stat-divider {
+  width: 1px;
+  height: 40px;
+  background: rgba(255,255,255,0.08);
+}
+
+/* Nav Side Panel */
+.nav-side {
+  background: #0a1118;
+  border-left: 1px solid rgba(255,255,255,0.08);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.nav-side-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.nav-side-section:last-child { border-bottom: none; }
+.nav-stops-scroll { flex: 1; overflow-y: auto; min-height: 0; }
+.nav-side-header {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  padding: 10px 14px 8px;
+  background: rgba(0,0,0,0.3);
+  flex-shrink: 0;
+}
+
+/* Stop items */
+.nav-stop-item {
+  display: flex;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  align-items: flex-start;
+}
+.nav-stop-num {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: bold;
+  color: #000;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.nav-stop-body { flex: 1; min-width: 0; }
+.nav-stop-sev  { font-family: var(--font-mono); font-size: 8px; font-weight: bold; letter-spacing: 0.1em; margin-bottom: 2px; }
+.nav-stop-text { font-size: 11px; color: var(--text-primary); line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.nav-stop-coords { font-family: var(--font-mono); font-size: 8px; color: var(--text-dim); margin-top: 2px; }
+.nav-empty { padding: 20px 14px; font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); text-align: center; }
+
+/* Turn-by-turn list */
+.nav-turns { flex: 1; overflow-y: auto; }
+.nav-turn-item {
+  display: flex;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  transition: background 0.1s, border-left-color 0.1s;
+  align-items: flex-start;
+}
+.nav-turn-item:hover { background: rgba(255,255,255,0.04); }
+.nav-turn-item.active { background: rgba(255,255,255,0.06); }
+.nav-turn-num   { font-size: 16px; flex-shrink: 0; line-height: 1.2; }
+.nav-turn-detail { flex: 1; min-width: 0; }
+.nav-turn-instr { font-size: 11px; color: var(--text-primary); text-transform: capitalize; }
+.nav-turn-rd    { font-family: var(--font-mono); font-size: 9px; color: var(--text-secondary); margin-top: 1px; }
+.nav-turn-meta  { font-family: var(--font-mono); font-size: 8px; color: var(--text-dim); margin-top: 2px; }
+
+/* Nav vehicle & stop markers */
+.nav-vehicle-marker {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  border: 3px solid;
+  background: rgba(8,14,22,0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  box-shadow: 0 0 20px currentColor, 0 4px 12px rgba(0,0,0,0.5);
+}
+.nav-stop-marker {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  border: 2px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: bold;
+  color: #000;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
