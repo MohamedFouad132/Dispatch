@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './App.css';
@@ -86,7 +86,8 @@ function computeSeverity(text) {
 function App() {
   const mapRef            = useRef(null);
   const vehicleMarkersRef = useRef([]);
-  const logOutRef         = useRef(null); // ref for auto-scroll on new log entries
+  const incMarkersRef     = useRef([]); // incident pin markers on map
+  const logOutRef         = useRef(null);
 
   const [threat,        setThreat]        = useState({ level: 'low', label: 'THREAT: ASSESSING…' });
   const [clock,         setClock]         = useState('--:--:-- ET');
@@ -122,6 +123,30 @@ function App() {
     });
     setLogs(prev => [...prev.slice(-80), { time: formatter.format(now), agent, msg }]);
   };
+
+  // Drops a colored dot pin on the map and adds incident to the feed
+  // iconAnchor is [6,6] (center of the 12px dot) — prevents any shift on click
+  const addIncident = useCallback((incident, source) => {
+    setFeedIncidents(prev => {
+      const next = [{ ...incident, source }, ...prev];
+      setThreat(calcThreat(next));
+      return next;
+    });
+    if (!mapRef.current) return;
+    const col  = sevCol(incident.severity);
+    const html = `<div class="inc-dot" style="background:${col}20;border-color:${col};"></div>`;
+    const icon = L.divIcon({ className: 'inc-marker-wrap', html, iconSize: [12, 12], iconAnchor: [6, 6] });
+    const marker = L.marker([incident.lat, incident.lon], { icon })
+      .bindTooltip(`<b>${incident.source || source}</b><br>${incident.text}`, { direction: 'top', offset: [0, -8], className: 'facility-tooltip' })
+      .addTo(mapRef.current);
+    incMarkersRef.current.push(marker);
+  }, []);
+
+  // Removes all incident pins from the map and clears the feed
+  const clearMap = useCallback(() => {
+    incMarkersRef.current.forEach(m => { try { mapRef.current?.removeLayer(m); } catch(e) {} });
+    incMarkersRef.current = [];
+  }, []);
 
   // Auto-scroll log to bottom whenever a new entry is appended
   useEffect(() => {
@@ -212,6 +237,7 @@ function App() {
   const runSimulation = async () => {
     if (running || !mapRef.current) return;
     setRunning(true);
+    clearMap();
     setFeedIncidents([]);
     setThreat({ level: 'low', label: 'THREAT: ASSESSING…' });
     setAgentStatus({
@@ -229,7 +255,16 @@ function App() {
     });
     setLogs([{ time: formatter0.format(now), agent: 'sys', msg: 'Agents started.' }]);
 
-    //Social Media Agent
+    // Show progress bar and scan line on map
+    const progressWrap = document.getElementById('progress-wrap');
+    const progressBar  = document.getElementById('progress-bar');
+    const scanLine     = document.getElementById('scan-line');
+    if (progressWrap) progressWrap.style.display = 'block';
+    if (scanLine) scanLine.classList.add('on');
+    const setProg = (pct) => { if (progressBar) progressBar.style.width = pct + '%'; };
+    setProg(5);
+
+    // 1 — Social Media Agent
     setAgent('social', 'active', 'Scanning social feeds…');
     addLog('social', 'Scanning social media for distress signals…');
     await new Promise(r => setTimeout(r, 9000));
@@ -241,11 +276,12 @@ function App() {
     setAgent('social', 'done', 'Complete', socialInc.length);
     for (let i = 0; i < socialInc.length; i++) {
       await new Promise(r => setTimeout(r, 300));
-      setFeedIncidents(prev => { const next = [...prev, socialInc[i]]; setThreat(calcThreat(next)); return next; });
+      addIncident(socialInc[i], 'SOCIAL MEDIA');
     }
     addLog('social', `✓ Complete — ${socialInc.length} incidents queued.`);
+    setProg(30);
 
-    //Satellite Image Agent
+    // 2 — Satellite Image Agent
     setAgent('image', 'active', 'Processing satellite imagery…');
     addLog('image', 'Analyzing satellite imagery for damage signatures…');
     await new Promise(r => setTimeout(r, 9000));
@@ -258,11 +294,12 @@ function App() {
     setAgent('image', 'done', 'Complete', satInc.length);
     for (let i = 0; i < satInc.length; i++) {
       await new Promise(r => setTimeout(r, 300));
-      setFeedIncidents(prev => { const next = [...prev, satInc[i]]; setThreat(calcThreat(next)); return next; });
+      addIncident(satInc[i], 'SATELLITE IMAGE');
     }
     addLog('image', `✓ Complete — ${satInc.length} detections confirmed.`);
+    setProg(55);
 
-    //911 Call Agent
+    // 3 — 911 Call Agent
     setAgent('call', 'active', 'Processing 911 transcripts…');
     addLog('call', 'Transcribing and triaging 911 call queue…');
     await new Promise(r => setTimeout(r, 9000));
@@ -275,18 +312,22 @@ function App() {
     setAgent('call', 'done', 'Complete', callInc.length);
     for (let i = 0; i < callInc.length; i++) {
       await new Promise(r => setTimeout(r, 300));
-      setFeedIncidents(prev => { const next = [...prev, callInc[i]]; setThreat(calcThreat(next)); return next; });
+      addIncident(callInc[i], '911 DISPATCH');
     }
     addLog('call', `✓ Complete — ${callInc.length} calls processed.`);
+    setProg(75);
 
-    // Route Agent (placeholder, wired in later commit)
+    // 4 — Route Agent (placeholder, wired in next commit)
     setAgent('route', 'active', 'Calculating optimal routes…');
     addLog('route', 'Initializing route optimization across all units…');
-    await new Promise(r => setTimeout(r, 800));
+    await new Promise(r => setTimeout(r, 9000));
     setAgent('route', 'done', 'Route planning ready');
     addLog('route', '✓ Complete — routes ready for dispatch.');
     addLog('sys', 'All agents complete. Awaiting dispatch command.');
+    setProg(100);
 
+    setTimeout(() => { if (progressWrap) progressWrap.style.display = 'none'; }, 900);
+    if (scanLine) scanLine.classList.remove('on');
     setRunning(false);
   };
 
@@ -341,6 +382,21 @@ function App() {
               ))}
             </div>
 
+            {/* Metrics strip — incidents detected and agents complete */}
+            <div className="metrics-strip">
+              <div className="met">
+                <div className="met-label">Incidents Detected</div>
+                <div className="met-val c-red">{feedIncidents.length}</div>
+              </div>
+              <div className="met">
+                <div className="met-label">Agents Complete</div>
+                <div className="met-val c-green">
+                  {Object.values(agentStatus).filter(a => a.status === 'done').length}/4
+                </div>
+              </div>
+            </div>
+
+            {/* Run button */}
             <div className="run-wrap">
               <button
                 id="run-btn"
@@ -355,6 +411,10 @@ function App() {
 
           {/* Map area */}
           <div className="map-area">
+            {/* Progress bar along top edge of map */}
+            <div id="progress-wrap"><div id="progress-bar"></div></div>
+            {/* Scan line sweeps top-to-bottom during simulation */}
+            <div id="scan-line"></div>
             <div id="map"></div>
             <div className="map-foot">
               <div className="mf-stat">LAT <span id="cur-lat">—</span></div>
@@ -403,7 +463,7 @@ function App() {
             <div className="log-panel">
               <div className="log-head">
                 <div className="log-dot"></div>
-                <span className="log-lbl">Agent Log</span>
+                <span className="log-lbl">Agent Deliberation Log</span>
               </div>
               <div className="log-out" id="log-out" ref={logOutRef}>
                 {logs.map((log, i) => (
@@ -421,7 +481,6 @@ function App() {
                 ))}
               </div>
             </div>
-
           </div>
         </div>
       </div>
