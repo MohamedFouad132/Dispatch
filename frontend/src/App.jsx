@@ -7,10 +7,8 @@ import './App.css';
 // Helper functions
 // --------------------------------------------------------------
 
-// Pad a number with leading zeros to ensure it has at least 2 digits
 const pad = (n) => String(n).padStart(2, '0');
 
-// Picks a color based on severity score
 const sevCol = (s) => {
   if (s >= 0.90) return '#dc2626';
   if (s >= 0.78) return '#f97316';
@@ -20,7 +18,6 @@ const sevCol = (s) => {
   return '#16a34a';
 };
 
-// Calculates the overall threat level based on the incidents
 const calcThreat = (incidents) => {
   const crit = incidents.filter(x => x.severity >= 0.85).length;
   const high = incidents.filter(x => x.severity >= 0.65 && x.severity < 0.85).length;
@@ -33,7 +30,6 @@ const calcThreat = (incidents) => {
   return { level: 'critical', label: 'THREAT: CRITICAL' };
 };
 
-// Data loaded from simulation.json — populated by loadSimulationData()
 let VEHICLES             = [];
 let HOSPITALS            = [];
 let SHELTERS             = [];
@@ -71,7 +67,6 @@ const getVehicleColor = (type) => {
   return '#f59e0b';
 };
 
-// Scores incident severity from text keywords — used as local fallback when backend is offline
 function computeSeverity(text) {
   const lower = text.toLowerCase();
   if (lower.includes('trapped') || lower.includes('collapse') || lower.includes('explosion')) return 0.95;
@@ -82,7 +77,6 @@ function computeSeverity(text) {
   return 0.50;
 }
 
-// Haversine distance in km between two lat/lon points
 function distance(lat1, lon1, lat2, lon2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -91,13 +85,10 @@ function distance(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-// Estimated travel time in minutes at 50km/h average
 function travelTime(distKm) {
   return (distKm / 50) * 60;
 }
 
-// Assigns incidents to nearest vehicles, orders stops by nearest-neighbor,
-// appends hospital endpoint for ambulances and shelter endpoint for police
 function buildInitialRoutes(incidents, vehicles) {
   if (!incidents.length) return [];
   const routes = vehicles.map(veh => ({
@@ -112,7 +103,6 @@ function buildInitialRoutes(incidents, vehicles) {
     });
     routes[bestVeh].stops.push({ incidentId: inc.id, lat: inc.lat, lon: inc.lon, severity: inc.severity, text: inc.text });
   });
-  // Order each vehicle's stops by nearest-neighbor greedy
   routes.forEach(route => {
     if (!route.stops.length) return;
     const ordered = [];
@@ -130,7 +120,6 @@ function buildInitialRoutes(incidents, vehicles) {
     }
     route.stops = ordered;
   });
-  // Append hospital for ambulances, shelter for police
   routes.forEach(route => {
     if (route.type === 'ambulance' && route.stops.length) {
       const last = route.stops[route.stops.length - 1];
@@ -153,7 +142,6 @@ function buildInitialRoutes(incidents, vehicles) {
   return routes;
 }
 
-// Fetch real road geometry from OSRM for a list of waypoints
 async function fetchRoadRoute(waypoints) {
   if (waypoints.length < 2) return null;
   const coords = waypoints.map(wp => `${wp.lon},${wp.lat}`).join(';');
@@ -181,13 +169,11 @@ async function fetchRoadRoute(waypoints) {
   }
 }
 
-// Build a full route from start through all stops — falls back to straight lines if OSRM fails
 async function buildFullRoute(start, stops) {
   if (!stops.length) return null;
   const waypoints  = [start, ...stops];
   const roadRoute  = await fetchRoadRoute(waypoints);
   if (roadRoute) return roadRoute;
-  // Straight-line fallback
   const straightGeo = waypoints.map(wp => [wp.lat, wp.lon]);
   let straightDist  = 0;
   for (let i = 0; i < waypoints.length - 1; i++) {
@@ -201,7 +187,6 @@ async function buildFullRoute(start, stops) {
   };
 }
 
-// Interpolate a position along a geometry array at fraction t (0..1)
 function interpolateGeometry(geometry, t) {
   if (!geometry || geometry.length < 2) return null;
   const totalSegs = geometry.length - 1;
@@ -213,7 +198,6 @@ function interpolateGeometry(geometry, t) {
   return [a[0] + (b[0] - a[0]) * segFrac, a[1] + (b[1] - a[1]) * segFrac];
 }
 
-// Get bearing in degrees at position t along a geometry
 function getBearingAtT(geometry, t) {
   if (!geometry || geometry.length < 2) return 0;
   const totalSegs = geometry.length - 1;
@@ -227,7 +211,6 @@ function getBearingAtT(geometry, t) {
   return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 }
 
-// Find current step index based on progress t
 function getCurrentStep(steps, t) {
   if (!steps || steps.length === 0) return 0;
   return Math.min(Math.floor(t * steps.length), steps.length - 1);
@@ -237,8 +220,11 @@ function getCurrentStep(steps, t) {
 function App() {
   const mapRef            = useRef(null);
   const vehicleMarkersRef = useRef([]);
-  const incMarkersRef     = useRef([]); // incident pin markers on map
+  const incMarkersRef     = useRef([]);
   const logOutRef         = useRef(null);
+
+  // Tracks which agents have already been marked complete during backend streaming
+  const completedAgentsSet = useRef(new Set());
 
   const [threat,        setThreat]        = useState({ level: 'low', label: 'THREAT: ASSESSING…' });
   const [clock,         setClock]         = useState('--:--:-- ET');
@@ -251,20 +237,19 @@ function App() {
     route:  { status: 'idle', msg: 'Standby', count: '—' },
   });
 
-  // Deliberation log — capped at 80 entries to avoid memory bloat
   const [logs, setLogs] = useState([
     { time: '00:00:00', agent: 'sys', msg: 'Agents on standby.' },
   ]);
 
-  const routeLinesRef      = useRef([]);
-  const allIncidentsRef    = useRef([]);
-  const [routes,           setRoutes]           = useState([]);
-  const [optimizing,       setOptimizing]       = useState(false);
+  const routeLinesRef       = useRef([]);
+  const allIncidentsRef     = useRef([]);
+  const [routes,            setRoutes]            = useState([]);
+  const [optimizing,        setOptimizing]        = useState(false);
   const [vehicleRoutesData, setVehicleRoutesData] = useState({});
   const [vehicleRouteStops, setVehicleRouteStops] = useState({});
+
   const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-  // Updates a single agent's status, message, and optional count
   const setAgent = (agent, status, msg, count = null) => {
     setAgentStatus(prev => ({
       ...prev,
@@ -272,7 +257,6 @@ function App() {
     }));
   };
 
-  // Appends a timestamped entry to the deliberation log
   const addLog = (agent, msg) => {
     const now = new Date();
     const formatter = new Intl.DateTimeFormat('en-US', {
@@ -283,8 +267,6 @@ function App() {
     setLogs(prev => [...prev.slice(-80), { time: formatter.format(now), agent, msg }]);
   };
 
-  // Drops a colored dot pin on the map and adds incident to the feed
-  // iconAnchor is [6,6] (center of the 12px dot) — prevents any shift on click
   const addIncident = useCallback((incident, source) => {
     setFeedIncidents(prev => {
       const next = [{ ...incident, source }, ...prev];
@@ -301,7 +283,6 @@ function App() {
     incMarkersRef.current.push(marker);
   }, []);
 
-  // Removes all incident pins from the map and clears the feed
   const clearMap = useCallback(() => {
     incMarkersRef.current.forEach(m => { try { mapRef.current?.removeLayer(m); } catch(e) {} });
     incMarkersRef.current = [];
@@ -312,22 +293,21 @@ function App() {
     setVehicleRouteStops({});
   }, []);
 
-  // Builds OSRM road routes for all vehicles after incidents are collected
+  // ─── Local OSRM routing (used as fallback when backend is offline) ───────────
   const optimizeRoutes = async (incidents) => {
     if (!incidents.length) return;
     setOptimizing(true);
     setAgent('route', 'active', 'Optimizing routes…');
     addLog('route', 'Initializing route optimization across all units…');
-    const currentRoutes  = buildInitialRoutes(incidents, VEHICLES);
+    const currentRoutes    = buildInitialRoutes(incidents, VEHICLES);
     const newVehicleRoutes = {};
     const newVehicleStops  = {};
     for (const route of currentRoutes) {
       const vehicle = VEHICLES.find(v => v.id === route.vehicleId);
       if (!vehicle) continue;
-      // Separate endpoint (hospital/shelter, severity 0) from incident stops
-      const allStops   = route.stops;
-      const lastStop   = allStops[allStops.length - 1];
-      const hasEndpoint = lastStop && lastStop.severity === 0;
+      const allStops      = route.stops;
+      const lastStop      = allStops[allStops.length - 1];
+      const hasEndpoint   = lastStop && lastStop.severity === 0;
       const incidentStops = hasEndpoint ? allStops.slice(0, -1) : allStops;
       const endpoint = hasEndpoint ? {
         lat: lastStop.lat, lon: lastStop.lon,
@@ -354,14 +334,254 @@ function App() {
     setOptimizing(false);
   };
 
-  // Auto-scroll log to bottom whenever a new entry is appended
+  // ─── Backend SSE stream processor ────────────────────────────────────────────
+  const processBackendStream = async (reader, decoder) => {
+    const agentCounts = { social: 0, image: 0, call: 0 };
+    const allIncidents = [];
+    let buffer = '';
+    while (true) {
+      let readResult;
+      try { readResult = await reader.read(); } catch(e) { break; }
+      const { done, value } = readResult;
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines[lines.length - 1];
+      for (let i = 0; i < lines.length - 1; i++) {
+        const line = lines[i];
+        if (!line.startsWith('data: ')) continue;
+        let event;
+        try { event = JSON.parse(line.substring(6)); } catch(e) { continue; }
+
+        if (event.type === 'incident') {
+          const incident = event.incident;
+          addIncident(incident, incident.source);
+          allIncidents.push(incident);
+          if (incident.source === 'SOCIAL MEDIA' && !completedAgentsSet.current.has('social')) {
+            agentCounts.social++;
+            setAgent('social', 'active', 'Filtering social media…', agentCounts.social);
+          } else if (incident.source === 'SATELLITE IMAGE' && !completedAgentsSet.current.has('image')) {
+            agentCounts.image++;
+            setAgent('image', 'active', 'Processing imagery…', agentCounts.image);
+          } else if (incident.source === '911 DISPATCH' && !completedAgentsSet.current.has('call')) {
+            agentCounts.call++;
+            setAgent('call', 'active', 'Processing 911 calls…', agentCounts.call);
+          }
+
+        } else if (event.type === 'agent_log') {
+          const agentMap = {
+            social_media_agent: 'social',
+            satellite_agent:    'image',
+            call_agent:         'call',
+            dispatch_agent:     'route',
+            route_agent:        'route',
+          };
+          const agent = agentMap[event.agent] || event.agent;
+          addLog(agent, event.content);
+          if (event.content.includes('✓ Complete')) {
+            if (event.agent === 'social_media_agent') {
+              completedAgentsSet.current.add('social');
+              setAgent('social', 'done', 'Complete', agentCounts.social);
+              setAgent('image', 'active', 'Processing satellite imagery…');
+              addLog('image', 'Analyzing satellite imagery for damage signatures…');
+            } else if (event.agent === 'satellite_agent') {
+              completedAgentsSet.current.add('image');
+              setAgent('image', 'done', 'Complete', agentCounts.image);
+              setAgent('call', 'active', 'Processing 911 transcripts…');
+              addLog('call', 'Transcribing and triaging 911 call queue…');
+            } else if (event.agent === 'call_agent') {
+              completedAgentsSet.current.add('call');
+              setAgent('call', 'done', 'Complete', agentCounts.call);
+              setAgent('route', 'active', 'Calculating optimal routes…');
+              addLog('route', 'Initializing route optimization across all units…');
+            }
+          }
+
+        } else if (event.type === 'routes') {
+          // Backend provided pre-computed routes — use them directly
+          await processBackendRoutes(event.routes || []);
+
+        } else if (event.type === 'system') {
+          if (event.message !== 'Agents started.') addLog('sys', event.message);
+
+        } else if (event.type === 'complete') {
+          addLog('route', event.message || '✓ Complete — routes assigned');
+
+        } else if (event.type === 'error') {
+          addLog('sys', `Error: ${event.message}`);
+        }
+      }
+    }
+    return allIncidents;
+  };
+
+  // Applies route data received from the backend (skips OSRM — backend already routed)
+  const processBackendRoutes = async (backendRoutes) => {
+    const newVehicleRoutes = {};
+    const newVehicleStops  = {};
+    for (const route of backendRoutes) {
+      if (route.geometry && route.geometry.length > 0) {
+        newVehicleRoutes[route.vehicleId] = {
+          geometry: route.geometry,
+          distance: route.distance || 0,
+          duration: route.duration || 0,
+          steps:    route.steps    || [],
+          endpoint: route.endpoint || null,
+        };
+        newVehicleStops[route.vehicleId] = route.stops || [];
+      }
+      await sleep(300);
+    }
+    setVehicleRoutesData(newVehicleRoutes);
+    setVehicleRouteStops(newVehicleStops);
+    setRoutes(backendRoutes);
+    routeLinesRef.current.forEach(line => { try { mapRef.current?.removeLayer(line); } catch(e) {} });
+    routeLinesRef.current = [];
+    setAgent('route', 'done', 'Complete', `${backendRoutes.length} routes`);
+  };
+
+  // ─── Local simulation fallback ────────────────────────────────────────────────
+  // Runs entirely in-browser using simulation.json data + local OSRM routing.
+  const runLocalSimulation = async () => {
+    const allIncidents = [];
+    const progressBar  = document.getElementById('progress-bar');
+    const setProg = (pct) => { if (progressBar) progressBar.style.width = pct + '%'; };
+
+    // --- Social Media Agent ---
+    setProg(10);
+    await sleep(700);
+    for (let i = 0; i < SOCIAL_POSTS.length; i++) {
+      const post = SOCIAL_POSTS[i];
+      const inc  = { ...post, id: `social-${i}`, source: 'SOCIAL MEDIA', severity: computeSeverity(post.text) };
+      addIncident(inc, 'SOCIAL MEDIA');
+      allIncidents.push(inc);
+      setProg(10 + (i / SOCIAL_POSTS.length) * 17);
+      await sleep(200);
+    }
+    setAgent('social', 'done', 'Complete', `${SOCIAL_POSTS.length} signals`);
+    addLog('social', `✓ Complete — ${SOCIAL_POSTS.length} incidents queued.`);
+
+    // --- Satellite Image Agent ---
+    setAgent('image', 'active', 'Processing satellite imagery…');
+    addLog('image', 'Analyzing satellite imagery for damage signatures…');
+    setProg(30);
+    await sleep(900);
+    for (let i = 0; i < SATELLITE_DETECTIONS.length; i++) {
+      const sat = SATELLITE_DETECTIONS[i];
+      const inc = {
+        id: `sat-${i}`, source: 'SATELLITE IMAGE',
+        text: sat.description || sat.text || 'Anomaly detected',
+        lat: sat.lat, lon: sat.lon,
+        severity: sat.severity ?? (sat.type === 'fire' ? 0.9 : computeSeverity(sat.description || sat.text || '')),
+      };
+      addIncident(inc, 'SATELLITE IMAGE');
+      allIncidents.push(inc);
+      setProg(30 + (i / SATELLITE_DETECTIONS.length) * 16);
+      await sleep(200);
+    }
+    setAgent('image', 'done', 'Complete', `${SATELLITE_DETECTIONS.length} detections`);
+    addLog('image', `✓ Complete — ${SATELLITE_DETECTIONS.length} detections confirmed.`);
+
+    // --- 911 Call Agent ---
+    setAgent('call', 'active', 'Processing 911 transcripts…');
+    addLog('call', 'Transcribing and triaging 911 call queue…');
+    setProg(50);
+    await sleep(650);
+    for (let i = 0; i < CALL_TRANSCRIPTS.length; i++) {
+      const call = CALL_TRANSCRIPTS[i];
+      const inc  = {
+        id: `call-${i}`, source: '911 DISPATCH',
+        text: call.transcript || call.text || 'Emergency reported',
+        lat: call.lat, lon: call.lon,
+        severity: computeSeverity(call.transcript || call.text || ''),
+      };
+      addIncident(inc, '911 DISPATCH');
+      allIncidents.push(inc);
+      setProg(50 + (i / CALL_TRANSCRIPTS.length) * 17);
+      await sleep(220);
+    }
+    setAgent('call', 'done', 'Complete', `${CALL_TRANSCRIPTS.length} calls`);
+    addLog('call', `✓ Complete — ${CALL_TRANSCRIPTS.length} calls processed.`);
+
+    // --- Route Agent (local OSRM) ---
+    setAgent('route', 'active', 'Calculating optimal routes…');
+    allIncidentsRef.current = allIncidents;
+    setThreat(calcThreat(allIncidents));
+    await sleep(400);
+    setProg(70);
+    await optimizeRoutes(allIncidents);
+    addLog('sys', 'Routes ready. Click DISPATCH to deploy all units.');
+    setProg(100);
+  };
+
+  // ─── Main run handler ─────────────────────────────────────────────────────────
+  const runSimulation = async () => {
+    if (running || optimizing || !mapRef.current) return;
+    setRunning(true);
+    clearMap();
+    setFeedIncidents([]);
+    allIncidentsRef.current = [];
+    completedAgentsSet.current.clear();
+
+    const now  = new Date();
+    const fmt0 = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+    });
+    const t0 = fmt0.format(now);
+
+    setLogs([
+      { time: t0, agent: 'sys',    msg: 'Agents started.' },
+      { time: t0, agent: 'social', msg: 'Scanning social media for distress signals…' },
+    ]);
+    setAgentStatus({
+      social: { status: 'active', msg: 'Scanning social media…', count: '—' },
+      image:  { status: 'idle',   msg: 'Standby', count: '—' },
+      call:   { status: 'idle',   msg: 'Standby', count: '—' },
+      route:  { status: 'idle',   msg: 'Standby', count: '—' },
+    });
+    setThreat({ level: 'low', label: 'THREAT: ASSESSING…' });
+
+    const progressWrap = document.getElementById('progress-wrap');
+    const progressBar  = document.getElementById('progress-bar');
+    const scanLine     = document.getElementById('scan-line');
+    if (progressWrap) progressWrap.style.display = 'block';
+    if (scanLine) scanLine.classList.add('on');
+    const setProg = (pct) => { if (progressBar) progressBar.style.width = pct + '%'; };
+    setProg(5);
+
+    // 1. Try backend SSE stream
+    let backendSuccess = false;
+    try {
+      const response = await fetch('http://localhost:8000/run_simulation');
+      if (!response.ok) throw new Error('Backend unavailable');
+      const reader  = response.body.getReader();
+      const decoder = new TextDecoder();
+      const allInc  = await processBackendStream(reader, decoder);
+      allIncidentsRef.current = allInc;
+      setProg(100);
+      backendSuccess = true;
+    } catch (e) {
+      addLog('sys', 'Backend unavailable — using local simulation');
+    }
+
+    // 2. Fall back to full local simulation (agents + local OSRM routing)
+    if (!backendSuccess) {
+      await runLocalSimulation();
+    }
+
+    setTimeout(() => { if (progressWrap) progressWrap.style.display = 'none'; }, 900);
+    if (scanLine) scanLine.classList.remove('on');
+    setRunning(false);
+  };
+
+  // Auto-scroll deliberation log
   useEffect(() => {
     if (logOutRef.current) {
       logOutRef.current.scrollTop = logOutRef.current.scrollHeight;
     }
   }, [logs]);
 
-  // Live clock — ticks every second in Eastern Time
+  // Live clock
   useEffect(() => {
     const tick = () => {
       const now = new Date();
@@ -396,7 +616,6 @@ function App() {
     mapRef.current = map;
 
     loadSimulationData().then(() => {
-      // Vehicle markers
       VEHICLES.forEach(veh => {
         const col  = getVehicleColor(veh.type);
         const html = `<div class="vehicle-marker" style="color:${col}">
@@ -410,7 +629,6 @@ function App() {
         vehicleMarkersRef.current.push({ marker, data: veh });
       });
 
-      // Hospital markers — emoji only, info on hover
       HOSPITALS.forEach(h => {
         const html = `<div class="facility-emoji-marker hospital-emoji-marker"><span>🏥</span></div>`;
         const icon = L.divIcon({ className: '', html, iconSize: [36, 36], iconAnchor: [18, 18] });
@@ -422,7 +640,6 @@ function App() {
           .addTo(map);
       });
 
-      // Shelter markers — emoji only, info on hover
       SHELTERS.forEach(s => {
         const pct  = s.capacity ? Math.round((s.available / s.capacity) * 100) : null;
         const html = `<div class="facility-emoji-marker shelter-emoji-marker"><span>🏠</span></div>`;
@@ -438,104 +655,6 @@ function App() {
 
     return () => { map.remove(); mapRef.current = null; };
   }, []);
-
-  // Agents run strictly one after the other
-  const runSimulation = async () => {
-    if (running || !mapRef.current) return;
-    setRunning(true);
-    clearMap();
-    setFeedIncidents([]);
-    setThreat({ level: 'low', label: 'THREAT: ASSESSING…' });
-    setAgentStatus({
-      social: { status: 'idle', msg: 'Standby', count: '—' },
-      image:  { status: 'idle', msg: 'Standby', count: '—' },
-      call:   { status: 'idle', msg: 'Standby', count: '—' },
-      route:  { status: 'idle', msg: 'Standby', count: '—' },
-    });
-
-    // Reset log with a fresh start entry
-    const now = new Date();
-    const formatter0 = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/New_York',
-      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
-    });
-    setLogs([{ time: formatter0.format(now), agent: 'sys', msg: 'Agents started.' }]);
-
-    // Show progress bar and scan line on map
-    const progressWrap = document.getElementById('progress-wrap');
-    const progressBar  = document.getElementById('progress-bar');
-    const scanLine     = document.getElementById('scan-line');
-    if (progressWrap) progressWrap.style.display = 'block';
-    if (scanLine) scanLine.classList.add('on');
-    const setProg = (pct) => { if (progressBar) progressBar.style.width = pct + '%'; };
-    setProg(5);
-
-    // 1 — Social Media Agent
-    setAgent('social', 'active', 'Scanning social feeds…');
-    addLog('social', 'Scanning social media for distress signals…');
-    await new Promise(r => setTimeout(r, 9000));
-    const socialInc = SOCIAL_POSTS.map((post, i) => ({
-      id: `social-${i}`, source: 'SOCIAL MEDIA',
-      text: post.text, lat: post.lat, lon: post.lon,
-      severity: computeSeverity(post.text),
-    }));
-    setAgent('social', 'done', 'Complete', socialInc.length);
-    for (let i = 0; i < socialInc.length; i++) {
-      await new Promise(r => setTimeout(r, 300));
-      addIncident(socialInc[i], 'SOCIAL MEDIA');
-    }
-    addLog('social', `✓ Complete — ${socialInc.length} incidents queued.`);
-    setProg(30);
-
-    // 2 — Satellite Image Agent
-    setAgent('image', 'active', 'Processing satellite imagery…');
-    addLog('image', 'Analyzing satellite imagery for damage signatures…');
-    await new Promise(r => setTimeout(r, 9000));
-    const satInc = SATELLITE_DETECTIONS.map((det, i) => ({
-      id: `sat-${i}`, source: 'SATELLITE IMAGE',
-      text: det.description || det.text || 'Anomaly detected',
-      lat: det.lat, lon: det.lon,
-      severity: det.severity ?? computeSeverity(det.description || det.text || ''),
-    }));
-    setAgent('image', 'done', 'Complete', satInc.length);
-    for (let i = 0; i < satInc.length; i++) {
-      await new Promise(r => setTimeout(r, 300));
-      addIncident(satInc[i], 'SATELLITE IMAGE');
-    }
-    addLog('image', `✓ Complete — ${satInc.length} detections confirmed.`);
-    setProg(55);
-
-    // 3 — 911 Call Agent
-    setAgent('call', 'active', 'Processing 911 transcripts…');
-    addLog('call', 'Transcribing and triaging 911 call queue…');
-    await new Promise(r => setTimeout(r, 9000));
-    const callInc = CALL_TRANSCRIPTS.map((call, i) => ({
-      id: `call-${i}`, source: '911 DISPATCH',
-      text: call.transcript || call.text || 'Emergency reported',
-      lat: call.lat, lon: call.lon,
-      severity: computeSeverity(call.transcript || call.text || ''),
-    }));
-    setAgent('call', 'done', 'Complete', callInc.length);
-    for (let i = 0; i < callInc.length; i++) {
-      await new Promise(r => setTimeout(r, 300));
-      addIncident(callInc[i], '911 DISPATCH');
-    }
-    addLog('call', `✓ Complete — ${callInc.length} calls processed.`);
-    setProg(75);
-
-    // 4 — Route Agent
-    setAgent('route', 'active', 'Calculating optimal routes…');
-    addLog('route', 'Initializing route optimization across all units…');
-    const allInc = [...socialInc, ...satInc, ...callInc];
-    allIncidentsRef.current = allInc;
-    await optimizeRoutes(allInc);
-    addLog('sys', 'Routes ready. Click DISPATCH to deploy all units.');
-    setProg(100);
-
-    setTimeout(() => { if (progressWrap) progressWrap.style.display = 'none'; }, 900);
-    if (scanLine) scanLine.classList.remove('on');
-    setRunning(false);
-  };
 
   return (
     <div className="app">
@@ -569,7 +688,6 @@ function App() {
               </span>
             </div>
 
-            {/* Agent rows */}
             <div className="agents-wrap">
               {['social', 'image', 'call', 'route'].map(agent => (
                 <div className="agent-row" key={agent}>
@@ -588,7 +706,6 @@ function App() {
               ))}
             </div>
 
-            {/* Metrics strip — incidents detected and agents complete */}
             <div className="metrics-strip">
               <div className="met">
                 <div className="met-label">Incidents Detected</div>
@@ -602,7 +719,6 @@ function App() {
               </div>
             </div>
 
-            {/* Run button */}
             <div className="run-wrap">
               <button
                 id="run-btn"
@@ -617,9 +733,7 @@ function App() {
 
           {/* Map area */}
           <div className="map-area">
-            {/* Progress bar along top edge of map */}
             <div id="progress-wrap"><div id="progress-bar"></div></div>
-            {/* Scan line sweeps top-to-bottom during simulation */}
             <div id="scan-line"></div>
             <div id="map"></div>
             <div className="map-foot">
@@ -631,7 +745,7 @@ function App() {
             </div>
           </div>
 
-          {/* Right panel — Incident Feed + Deliberation Log */}
+          {/* Right panel */}
           <div className="right-panel">
             <div className="ph">
               <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
@@ -641,7 +755,6 @@ function App() {
               <span className="ph-badge">{feedIncidents.length}</span>
             </div>
 
-            {/* Scrollable incident list */}
             <div className="incident-list">
               {feedIncidents.length === 0 ? (
                 <div style={{ padding: '24px 14px', textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--text-dim)' }}>
@@ -665,7 +778,6 @@ function App() {
               )}
             </div>
 
-            {/* Agent Deliberation Log — fixed height at bottom of right panel */}
             <div className="log-panel">
               <div className="log-head">
                 <div className="log-dot"></div>
