@@ -1020,7 +1020,7 @@ function App() {
 
   // ─── DISPATCH ANIMATION ─────────────────────────────────────────────────────
   // Duration: simulate a 30-second full traversal for demo effect
-  const DISPATCH_DURATION_MS = 90000; // 90 seconds for full route
+  const DISPATCH_DURATION_MS = 20000; // 20 seconds for full route
 
   // Moving vehicle markers on the main map (separate from static icons)
   const dispatchMarkersRef = useRef({}); // vehicleId -> L.Marker
@@ -1455,8 +1455,8 @@ function App() {
                   )}
                 </div>
               )}
-              <button id="run-btn" onClick={runSimulation} className={running || optimizing ? 'running' : ''} disabled={running || optimizing}>
-                <span>{running ? '⟳ Agents Running…' : optimizing ? '⟳ Optimizing Routes…' : '▶ Run Simulation'}</span>
+              <button id="run-btn" onClick={runSimulation} className={running || optimizing ? 'running' : ''} disabled={running || optimizing || hasRun}>
+                <span>{running ? '⟳ Agents Running…' : optimizing ? '⟳ Optimizing Routes…' : '▶ Start Agents'}</span>
               </button>
             </div>
           </div>
@@ -1508,7 +1508,7 @@ function App() {
               )}
             </div>
             <div className="log-panel">
-              <div className="log-head"><div className="log-dot"></div><span className="log-lbl">Agent Deliberation Log</span></div>
+              <div className="log-head"><div className="log-dot"></div><span className="log-lbl">Agent Log</span></div>
               <div className="log-out" id="log-out">
                 {logs.map((log, i) => (
                   <div className="ll" key={i}>

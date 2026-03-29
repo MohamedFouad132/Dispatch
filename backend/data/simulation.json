@@ -1,5 +1,5 @@
 {
-  "center": [27.9506, -82.4572],
+"center": [27.9506, -82.4572],
   "social_posts": [
     {"text": "HELP water rising fast at Bayshore Blvd — car submerged pls rescue", "lat": 27.9351, "lon": -82.4794},
     {"text": "Roof collapsed N Armenia Ave apartment, multiple ppl trapped inside", "lat": 27.9748, "lon": -82.4812},
@@ -32,12 +32,12 @@
     "ambulances": [
       {"id": "AMB-1", "emoji": "🚑", "lat": 27.9506, "lon": -82.4572, "type": "ambulance"},
       {"id": "AMB-2", "emoji": "🚑", "lat": 27.9748, "lon": -82.4629, "type": "ambulance"},
-      {"id": "AMB-3", "emoji": "🚑", "lat": 27.9262, "lon": -82.4622, "type": "ambulance"}
+      {"id": "AMB-3", "emoji": "🚑", "lat": 27.9260, "lon": -82.4614, "type": "ambulance"}
     ],
     "firetrucks": [
       {"id": "FIRE-1", "emoji": "🚒", "lat": 27.9455, "lon": -82.4562, "type": "firetruck"},
       {"id": "FIRE-2", "emoji": "🚒", "lat": 27.9725, "lon": -82.4640, "type": "firetruck"},
-      {"id": "FIRE-3", "emoji": "🚒", "lat": 27.9290, "lon": -82.4665, "type": "firetruck"}
+      {"id": "FIRE-3", "emoji": "🚒", "lat": 27.9315, "lon": -82.4747, "type": "firetruck"}
     ],
     "police": [
       {"id": "POL-1", "emoji": "🚓", "lat": 27.9541, "lon": -82.4593, "type": "police"},
