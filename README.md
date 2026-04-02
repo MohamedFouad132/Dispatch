@@ -11,6 +11,12 @@ Dispatch is a real-time disaster response coordination system built with Google 
 
 ---
 
+## Demo Link
+
+https://www.youtube.com/watch?v=jyGvXaRvekI&t=133s
+
+---
+
 ## ✨ Features
 
 - **📡 Multi-Source Incident Ingestion** — Three AI agents process social media posts, satellite imagery detections, and 911 call transcripts independently, each producing structured, severity-scored incident reports.
